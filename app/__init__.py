@@ -61,7 +61,8 @@ def create_app(config_name: str | None = None):
     init_celery(app, celery)
 
     # Register blueprints
-    from .api import health_bp
+    from .api import health_bp, events_bp
 
     app.register_blueprint(health_bp, url_prefix="/v1/health")
+    app.register_blueprint(events_bp, url_prefix="/v1/events")
     return app

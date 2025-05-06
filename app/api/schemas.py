@@ -12,14 +12,14 @@ class HealthSchema(ma.Schema):
 
 class EventSearchQueryArgsSchema(ma.Schema):
     starts_at = fields.DateTime(
-        required=False,
+        required=True,
         allow_none=False,
         metadata={
             "description": "Return only events that start after this date (ISO 8601 format). Example: 2017-07-21T17:32:28Z"
         },
     )
     ends_at = fields.DateTime(
-        required=False,
+        required=True,
         allow_none=False,
         metadata={
             "description": "Return only events that end before this date (ISO 8601 format). Example: 2021-07-21T17:32:28Z"
