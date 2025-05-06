@@ -9,11 +9,21 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "my-secret-key"
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
 
-    PROVIDER_API_URL = (
-        os.environ.get("PROVIDER_API_URL")
-        or "https://provider.code-challenge.feverup.com/api/events"
-    )
-    PROVIDER_API_TIMEOUT = int(os.environ.get("PROVIDER_API_TIMEOUT") or 10)
+    # We will use a list with environment variables for now.
+    # In the future, providers will need to be added via the API.
+    PROVIDERS = [
+        {
+            "name": "fever_first_provider",
+            "url": os.environ.get("PROVIDER_API_URL"),
+            "timeout": int(os.environ.get("PROVIDER_API_TIMEOUT") or 10),
+        }
+        # Add here future providers:
+        # {
+        #     "name": "another_provider",
+        #     "url": os.environ.get("ANOTHER_PROVIDER_API_URL"),
+        #     "timeout": 15
+        # },
+    ]
 
     CELERY_BROKER_URL = (
         os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"

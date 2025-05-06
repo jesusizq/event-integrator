@@ -27,3 +27,4 @@ class ParsedEvent(BaseModel):
     sell_mode: Optional[str] = None
     organizer_company_id: Optional[str] = None
     event_plans: List[ParsedEventPlan] = Field(default_factory=list)
+    provider_name: str

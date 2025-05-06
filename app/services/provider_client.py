@@ -17,21 +17,22 @@ class ProviderClient:
     A client for interacting with the provider API.
     """
 
-    def __init__(self, base_url: str = None, timeout: int = None):
+    def __init__(self, provider_config: dict):
         """
-        Initialize the provider client with optional base URL and timeout.
+        Initialize the provider client with a provider configuration dictionary.
+
+        Args:
+            provider_config (dict): A dictionary containing provider details
+                                      including 'name', 'url', and 'timeout'.
         """
+        if not all(key in provider_config for key in ["name", "url", "timeout"]):
+            raise ValueError(
+                "Provider config must contain 'name', 'url', and 'timeout' keys."
+            )
 
-        self.base_url = (
-            base_url if base_url is not None else current_app.config["PROVIDER_API_URL"]
-        )
-
-        self.timeout = (
-            timeout
-            if timeout is not None
-            else current_app.config["PROVIDER_API_TIMEOUT"]
-        )
-
+        self.provider_name = provider_config["name"]
+        self.base_url = provider_config["url"]
+        self.timeout = provider_config["timeout"]
         self.session = self._create_session()
 
     def _create_session(self) -> requests.Session:

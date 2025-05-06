@@ -11,12 +11,13 @@ def _to_bool(value: Optional[str]) -> bool:
     return value is not None and value.lower() == "true"
 
 
-def parse_event_xml(xml_string: str) -> Optional[List[ParsedEvent]]:
+def parse_event_xml(xml_string: str, provider_name: str) -> Optional[List[ParsedEvent]]:
     """
     Parses an XML string containing event data from the provider.
 
     Args:
         xml_string: The XML content as a string.
+        provider_name: The name of the provider for this XML data.
 
     Returns:
         A list of ParsedEvent objects, or None if parsing fails.
@@ -82,6 +83,7 @@ def parse_event_xml(xml_string: str) -> Optional[List[ParsedEvent]]:
                     "sell_mode": base_plan_elem.get("sell_mode"),
                     "organizer_company_id": base_plan_elem.get("organizer_company_id"),
                     "event_plans": event_plans_data,
+                    "provider_name": provider_name,
                 }
                 all_parsed_events.append(ParsedEvent(**base_event_data))
             except (ValidationError, ValueError, TypeError) as e:
