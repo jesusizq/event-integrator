@@ -1,11 +1,12 @@
 import os
 from flask import Flask
 import logging
+from config import config
 from .extensions import db, migrate, cache, cors, apifairy, ma
 
 
-def create_app(config_name=None):
-    """Application factory pattern"""
+def create_app(config_name: str | None = None):
+    """Application factory."""
 
     logging.basicConfig(
         level=logging.INFO,
@@ -14,10 +15,19 @@ def create_app(config_name=None):
     )
 
     if config_name is None:
-        config_name = os.getenv("FLASK_CONFIG", "development")
+        config_name = os.getenv("FLASK_CONFIG", "default")
+
+    if config_name not in config:
+        logging.warning(
+            f"Configuration '{config_name}' not found. "
+            f"Falling back to 'default' configuration."
+        )
+        config_name = "default"
+
+    current_config_object = config[config_name]
 
     app = Flask(__name__)
-    app.config.from_object(config_name)
+    app.config.from_object(current_config_object)
 
     logging.getLogger(__name__).info(f"Flask app created with config: {config_name}")
 
