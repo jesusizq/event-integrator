@@ -15,6 +15,20 @@ class Config:
     )
     PROVIDER_API_TIMEOUT = int(os.environ.get("PROVIDER_API_TIMEOUT") or 10)
 
+    CELERY_BROKER_URL = (
+        os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"
+    )
+    CELERY_RESULT_BACKEND = (
+        os.environ.get("CELERY_RESULT_BACKEND") or "redis://localhost:6379/0"
+    )
+    CELERY_TIMEZONE = "UTC"
+    CELERY_BEAT_SCHEDULE = {
+        "sync-provider-events-hourly": {
+            "task": "app.tasks.sync.sync_provider_events",
+            "schedule": 3600.0,  # Every hour
+        },
+    }
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

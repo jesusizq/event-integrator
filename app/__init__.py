@@ -2,7 +2,27 @@ import os
 from flask import Flask
 import logging
 from config import config
-from .extensions import db, migrate, cache, cors, apifairy, ma
+from .extensions import db, migrate, cache, cors, apifairy, ma, celery
+
+
+def init_celery(app, celery_instance):
+    celery_instance.conf.update(
+        broker_url=app.config.get("CELERY_BROKER_URL"),
+        result_backend=app.config.get("CELERY_RESULT_BACKEND"),
+        task_ignore_result=app.config.get("CELERY_TASK_IGNORE_RESULT", True),
+    )
+    celery_instance.conf.CELERY_TIMEZONE = app.config.get("CELERY_TIMEZONE", "UTC")
+    celery_instance.conf.beat_schedule = app.config.get("CELERY_BEAT_SCHEDULE")
+
+    # Ensure tasks run within the application context
+    class ContextTask(celery_instance.Task):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery_instance.Task = ContextTask
+    app.extensions["celery"] = celery_instance  # Register celery with app extensions
+    return celery_instance
 
 
 def create_app(config_name: str | None = None):
@@ -38,6 +58,7 @@ def create_app(config_name: str | None = None):
     cors.init_app(app)
     ma.init_app(app)  # Marshmallow before apifairy
     apifairy.init_app(app)
+    init_celery(app, celery)
 
     # Register blueprints
     from .api import health_bp
