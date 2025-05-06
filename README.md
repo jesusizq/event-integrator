@@ -1,77 +1,111 @@
-# Fever code challenge
+# Fever Event Integrator
 
-Welcome! We're thrilled to have you at this stage of the process. This challenge is designed to give us insight into your coding approach and problem-solving skills. It’s a simplified example of real-world scenarios we handle daily at Fever.
+## Overview
 
-## About Fever
+This project implements a solution for the task defined in the [TASK.md](docs/TASK.md) file.
 
-At Fever we work to bring experiences to people. We have a marketplace of events from different providers that are curated and then consumed by multiple applications. We work hard to expand the range of experiences we offer to our customers. Consequently, we are continuously looking for new providers with great events to integrate in our platforms. 
+It's a simple backend API built with Flask and Python.
 
-## The challenge
+The main API runs at: `http://localhost:8080/v1/<endpoint>` (when using Docker/Nginx) or `http://localhost:5000/v1/<endpoint>` (when running Flask directly).
 
-Your task is to develop a microservice that integrates events from an external provider into the Fever marketplace.
+A health check endpoint is available at `/v1/health`.
 
-Even if this is just a disposable test, imagine that somebody will pick up this code and maintain it in the future. It will evolve new features will be added, existing ones adapted, and unnecessary functionalities removed. Writing clean, scalable, and maintainable code is crucial for ensuring the sustainability of any project.
+## Architectural Overview
 
-> [!TIP]
-> This should be conceived as a long-term project, not just one-off code.
+TODO: add architectural overview
 
-The external provider exposes an endpoint: https://provider.code-challenge.feverup.com/api/events
+## Environment variables
 
-This API returns a list of available events in XML format. Events that are no longer available will not be included in future responses. Here are three example responses over consecutive API calls:
+The application requires the following environment variables, typically managed via a `.env` file in the project root:
 
-- [Response 1](https://gist.githubusercontent.com/acalvotech/55223c0e5c55baa33086e2383badba64/raw/1cab82e2d1f3adc8d3b3dace0a409844bed698f0/response_1.xml)
-- [Response 2](https://gist.githubusercontent.com/acalvotech/d9c6fc5a5920bf741638d6179c8c07ed/raw/2b4ca961f05b2eebc0682f21357d37ac0eb5c80a/response_2.xml)
-- [Response 3](https://gist.githubusercontent.com/acalvotech/7c107daacfd05f32c1c1bcd7209d85ef/raw/ea4c4c8d2b7ccf2ae2be153d45353fb7187f5236/response_3.xml)
+```sh
+# Flask Configuration
+FLASK_APP=run.py
+FLASK_CONFIG=development # Config to use (development, testing, production)
+SECRET_KEY=your_strong_secret_key
+FLASK_DEBUG=1 # Set to 1 for development
 
-> [!WARNING]
-> The API endpoint has been designed with real-world conditions in mind, where network requests don’t always behave ideally. Your solution should demonstrate how you handle various scenarios that could occur in production environments. **Don’t assume the API endpoint will always respond successfully and with low latency.**
+# Database Configuration
+DATABASE_URL=postgresql://user:password@db:5432/event_integrator
+DB_NAME=event_integrator
+DB_USER=user
+DB_PASSWORD=password
+TEST_DATABASE_URL=postgresql://test_user:test_password@host:port/test_event_integrator
+TEST_DB_NAME=test_event_integrator
+TEST_DB_USER=test_user
+TEST_DB_PASSWORD=test_password
 
-## Your Task
+# External Provider API
+PROVIDER_API_URL=https://provider.code-challenge.feverup.com/api/events
+PROVIDER_API_TIMEOUT=10 # seconds
+```
 
-You need to **develop and expose a single endpoint**:
+- Set `FLASK_CONFIG` to `production` for production deployments.
+- Ensure `SECRET_KEY` is set to a strong, unique value in production.
+- Create a `.env` file (copied from `.env.example`) in the project root to manage these variables locally. **Do not commit `.env` to version control.**
 
-- **API Spec:** [SwaggerHub Reference](https://app.swaggerhub.com/apis-docs/luis-pintado-feverup/backend-test/1.0.0)
-- The endpoint should accept `starts_at` and `ends_at` parameters and return only the events within this time range.
-- Events should be included if they were ever available (with `"sell_mode": "online"`).
-- Past events should be retrievable even if they are no longer present in the provider’s latest response.
-- The endpoint must be performant, responding in **hundreds of milliseconds**, regardless of the state of other external services. For instance, if the external provider service is down, our search endpoint should still work as usual. Similarly, it should also respond quickly to all requests regardless of the traffic we receive.
+## Dependencies
 
-## Evaluation criteria
+Install dependencies (`poetry` >=1.5.0 needs to be [installed](https://python-poetry.org/docs/#installing-with-the-official-installer) on the system)
 
-Your solution will be evaluated holistically, with special attention to:
+Depending on your IDE, you may need to configure the python interpreter to use the poetry environment (i.e. [PyCharm](https://www.jetbrains.com/help/pycharm/poetry.html))
 
-- **Problem-Solution Fit:** How well your solution aligns with the given problem.
-- **Adherence to API Spec:** Follow the provided OpenAPI specification.
-- **Documentation:** Provide a README explaining design choices and implementation details, additional design schemas will be valued.
-- **Makefile:** Include a Makefile with a run target to simplify running the application.
-- **Code Quality:** Readability, maintainability, and adherence to best practices.
-- **Software Architecture:** Structural design choices and scalability considerations.
-- **Efficiency:** Optimize for both resources and time efficiency.
+If the previous step has not done it automatically, now you have to install dependencies:
 
-## Guidelines
+```sh
+poetry install
+```
 
-- Use your preferred programming language.
-- Feel free to use any libraries, frameworks, or tools that best fit the task.
-- Submit your code in the `master` branch of this repository.
+Activate `poetry environment`:
 
-## Going the extra mile 🚀
+```sh
+poetry shell
+```
 
-To make your solution even stronger, consider:
+## Running the app
 
-- **Scalability:** How would you handle a scenario where the provider sends thousands of events with hundreds of zones per event?
-- **High Traffic:** How would your service respond to 5k-10k requests per second?
-- **Optimization Strategies:** How can the system remain performant under heavy load?
+### 1. Using Poetry
 
-You can implement these enhancements in your code or describe your approach in the README.
+Ensure environment variables are set or available in a `.env` file.
 
-## Need Help?
+```sh
+# Run the development server
+poetry run flask run
 
-If you have any questions, feel free to reach out. We’ll get back to you as soon as possible.
+# The app will be available at http://localhost:5000
+```
 
-## Feedback
+### 2. Using Docker Compose (Recommended)
 
-We value your time and effort! Please take a moment to share your thoughts on our process:
+This method uses the [docker/docker-compose.yml](docker/docker-compose.yml) file which runs the Flask app along with an Nginx proxy.
 
-[📋 Feedback Form](https://forms.gle/6NdDApby6p3hHsWp8)
+Ensure your `.env` file is in the project root, as `docker-compose.yml` is depends on it.
 
-Thank you for participating, and good luck! 🎉
+Build and start the containers in detached mode via the helper script:
+
+```sh
+sh docker/run.sh -d up
+```
+
+The app will be available via Nginx at `http://localhost:8080`
+
+- View logs: `cd docker && docker compose logs -f`
+- Stop containers: `sh docker/run.sh down`
+
+## Running Tests
+
+Ensure development dependencies are installed (`poetry install --with dev`).
+
+Configure a `TEST_DATABASE_URL` in your environment or `.env` file, so tests automatically run against that database.
+
+```sh
+poetry run pytest
+```
+
+Alternatively, run tests inside the Docker container (after `make up` or `./docker/run.sh up`):
+
+```sh
+make test
+# or
+docker compose exec app poetry run pytest
+```
