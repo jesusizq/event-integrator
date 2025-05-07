@@ -45,11 +45,11 @@ while getopts ":n:e:d:c" opt; do
             ;;
         e )
             case $OPTARG in
-                dev|prod)
+                dev|prod|test)
                     ENV=$OPTARG
                     ;;
                 *)
-                    echo "Invalid environment: $OPTARG. Must be dev or prod" 1>&2
+                    echo "Invalid environment: $OPTARG. Must be dev, prod, or test" 1>&2
                     usage
                     ;;
             esac
@@ -74,6 +74,9 @@ case "$ENV" in
         ;;
     prod)
         ENV_FILE=".env.production"
+        ;;
+    test)
+        ENV_FILE=".env.test"
         ;;
 esac
 

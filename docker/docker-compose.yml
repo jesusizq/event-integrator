@@ -1,0 +1,94 @@
+name: "event-integrator"
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: app
+    container_name: event_integrator_app
+    volumes:
+      - ../app:/home/appuser/app
+      - ../config.py:/home/appuser/config.py
+      - ../run.py:/home/appuser/run.py
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-development}
+      FLASK_DEBUG: ${FLASK_DEBUG:-1}
+      FLASK_APP: ${FLASK_APP:-run.py}
+      FLASK_CONFIG: ${FLASK_CONFIG:-development}
+      DATABASE_URL: ${DATABASE_URL}
+      TEST_DATABASE_URL: ${TEST_DATABASE_URL}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+      PROVIDER_API_URL: ${PROVIDER_API_URL}
+      PROVIDER_API_TIMEOUT: ${PROVIDER_API_TIMEOUT:-10}
+
+  db:
+    image: postgres:15-alpine
+    container_name: event_integrator_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-eventsdb} # Use env var or default
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    ports:
+      - "5432:5432" # Expose locally for debugging
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-eventsdb}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: event_integrator_redis
+    ports:
+      - "6379:6379" # Expose locally for debugging
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: nginx
+    container_name: event_integrator_nginx
+    ports:
+      - "8080:80"
+      #- "443:443"
+    volumes:
+      - nginx_logs:/var/log/nginx
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      app:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  nginx_cache:
+  nginx_logs:
+  postgres_data:
