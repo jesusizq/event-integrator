@@ -43,28 +43,19 @@ def _transform_event_to_summary(event: Event) -> dict:
     final_min_price = min_overall_price if min_overall_price != float("inf") else None
     final_max_price = max_overall_price if max_overall_price != float("-inf") else None
 
-    start_date_iso = (
-        overall_start_datetime.date().isoformat() if overall_start_datetime else None
-    )
-    start_time_iso = (
-        overall_start_datetime.time().isoformat(timespec="seconds")
-        if overall_start_datetime
-        else None
-    )
+    # Pass datetime.date objects to the schema, not pre-formatted strings
+    start_date_obj = overall_start_datetime.date() if overall_start_datetime else None
+    start_time_obj = overall_start_datetime.time() if overall_start_datetime else None
+    end_date_obj = overall_end_datetime.date() if overall_end_datetime else None
+    end_time_obj = overall_end_datetime.time() if overall_end_datetime else None
 
     return {
         "id": event.id,
         "title": event.title,
-        "start_date": start_date_iso,
-        "start_time": start_time_iso,
-        "end_date": (
-            overall_end_datetime.date().isoformat() if overall_end_datetime else None
-        ),
-        "end_time": (
-            overall_end_datetime.time().isoformat(timespec="seconds")
-            if overall_end_datetime
-            else None
-        ),
+        "start_date": start_date_obj,
+        "start_time": start_time_obj,
+        "end_date": end_date_obj,
+        "end_time": end_time_obj,
         "min_price": final_min_price,
         "max_price": final_max_price,
     }

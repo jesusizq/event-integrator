@@ -4,6 +4,7 @@
       <base_plan base_plan_id="999" title="Malformed Event">
          <plan plan_id="9991" plan_start_date="2023-12-31T23:00:00">
             <zone zone_id="Z9" price="10.0" />
-         </plan>
-      </output>
-   </planList> 
+         </event_plan>
+      </base_plan>
+   </output>
+</planList> 

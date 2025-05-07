@@ -2,7 +2,6 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import logging
-from flask import current_app
 
 logger = logging.getLogger(__name__)
 

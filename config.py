@@ -64,6 +64,8 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = (
         os.environ.get("TEST_DATABASE_URL") or Config.SQLALCHEMY_DATABASE_URI
     )
+    CELERY_TASK_ALWAYS_EAGER = True  # Ensure tasks are executed immediately
+    CELERY_TASK_EAGER_PROPAGATES = True  # Ensure task results are propagated
 
 
 config = {
