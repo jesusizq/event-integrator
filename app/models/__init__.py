@@ -1,7 +1,7 @@
-from .event import BaseEvent, EventPlan, Zone
+from .event import Event, EventPlan, Zone
 
 __all__ = [
-    "BaseEvent",
+    "Event",
     "EventPlan",
     "Zone",
 ]

@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.models.event import Event, EventPlan, Zone
 from app.models.enums import SellModeEnum
 from app.core.parsing_schemas import ParsedEvent, ParsedEventPlan, ParsedZone
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Set
 import logging
 
@@ -105,7 +105,7 @@ class EventRepository:
                 Zone.zone_id.notin_(seen_zone_ids_in_provider_feed),
             )
             .update(
-                {Zone.last_seen_at: current_time - func.timedelta(seconds=1)},
+                {Zone.last_seen_at: current_time - timedelta(seconds=1)},
                 synchronize_session=False,
             )  # Mark as slightly older
         )
@@ -171,7 +171,7 @@ class EventRepository:
                 EventPlan.base_plan_id.notin_(seen_plan_ids_in_provider_feed),
             )
             .update(
-                {EventPlan.last_seen_at: current_time - func.timedelta(seconds=1)},
+                {EventPlan.last_seen_at: current_time - timedelta(seconds=1)},
                 synchronize_session=False,
             )
         )
@@ -258,7 +258,7 @@ class EventRepository:
                 )
 
                 # Mark events as stale slightly in the past to differentiate from genuinely new 'last_seen_at'
-                stale_time = current_time - func.timedelta(seconds=1)
+                stale_time = current_time - timedelta(seconds=1)
 
                 update_count = (
                     self.db_session.query(Event)

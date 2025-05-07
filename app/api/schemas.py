@@ -1,12 +1,14 @@
-from marshmallow import fields, ValidationError
+from marshmallow import fields, ValidationError, validates_schema
 from app.extensions import ma
 
 
 class HealthSchema(ma.Schema):
     status = fields.String(
         required=True,
-        description="Indicates the health status of the service.",
-        example="ok",
+        metadata={
+            "description": "Indicates the health status of the service.",
+            "example": "ok",
+        },
     )
 
 
@@ -26,7 +28,7 @@ class EventSearchQueryArgsSchema(ma.Schema):
         },
     )
 
-    @ma.validates_schema
+    @validates_schema
     def validate_dates(self, data, **kwargs):
         if data["starts_at"] >= data["ends_at"]:
             raise ValidationError("'ends_at' must be after 'starts_at'.")
@@ -102,14 +104,18 @@ class ErrorResponseSchema(ma.Schema):
 class SearchQueryArgsSchema(ma.Schema):
     starts_at = fields.DateTime(
         required=True,
-        description="Start date/time for the event search range (ISO 8601 format).",
+        metadata={
+            "description": "Start date/time for the event search range (ISO 8601 format)."
+        },
     )
     ends_at = fields.DateTime(
         required=True,
-        description="End date/time for the event search range (ISO 8601 format).",
+        metadata={
+            "description": "End date/time for the event search range (ISO 8601 format)."
+        },
     )
 
-    @ma.validates_schema
+    @validates_schema
     def validate_dates(self, data, **kwargs):
         if data["starts_at"] >= data["ends_at"]:
             raise ValidationError("'ends_at' must be after 'starts_at'.")
@@ -123,36 +129,38 @@ class SearchQueryArgsSchema(ma.Schema):
 
 
 class ZoneSchema(ma.Schema):
-    id = fields.UUID(required=True, description="Unique identifier for the zone.")
-    name = fields.String(required=True, description="Name of the zone.")
-    price = fields.Float(required=True, description="Price for the zone.")
-    capacity = fields.Integer(required=True, description="Capacity of the zone.")
+    id = fields.UUID(
+        required=True, metadata={"description": "Unique identifier for the zone."}
+    )
+    name = fields.String(required=True, metadata={"description": "Name of the zone."})
+    price = fields.Float(required=True, metadata={"description": "Price for the zone."})
+    capacity = fields.Integer(
+        required=True, metadata={"description": "Capacity of the zone."}
+    )
 
 
 class EventSchema(ma.Schema):
     id = fields.UUID(
         required=True,
-        description="Unique identifier for the event.",
         allow_none=False,
+        metadata={"description": "Unique identifier for the event."},
     )
     title = fields.String(
-        required=True,
-        description="Title of the event.",
-        allow_none=False,
+        required=True, allow_none=False, metadata={"description": "Title of the event."}
     )
     starts_at = fields.DateTime(
         required=True,
-        description="Start date/time of the event.",
         allow_none=False,
+        metadata={"description": "Start date/time of the event."},
     )
     ends_at = fields.DateTime(
         required=True,
-        description="End date/time of the event.",
         allow_none=False,
+        metadata={"description": "End date/time of the event."},
     )
     zones = fields.List(
         fields.Nested(ZoneSchema),
         required=True,
-        description="List of zones available for the event.",
         allow_none=True,
+        metadata={"description": "List of zones available for the event."},
     )
