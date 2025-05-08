@@ -501,7 +501,7 @@ class TestEventRepositoryUpsertEvents:
         # This requires mocking the event model directly
         with patch.object(
             event_repository, "_upsert_zone"
-        ) as mock_upsert_zone:  # prevent deeper calls
+        ) as _unused_mock_upsert_zone:  # prevent deeper calls
             query_mock_zone = mock_db_session.query_chain_mocks_for_actual_types[
                 ActualZone
             ]
@@ -984,7 +984,7 @@ class TestEventRepositoryGetEventsByDate:
         # Check filter arguments
         filter_conditions_tuple = join_mock.filter.call_args[0]
         assert any(
-            str(ActualEvent.ever_online == True) == str(arg)
+            str(ActualEvent.ever_online.is_(True)) == str(arg)
             for arg in filter_conditions_tuple
         )
         assert any(
@@ -1013,7 +1013,7 @@ class TestEventRepositoryGetEventsByDate:
         # Check that the filter was called and included Event.ever_online == True
         filter_conditions_tuple = join_mock.filter.call_args[0]
         assert any(
-            str(ActualEvent.ever_online == True) == str(arg)
+            str(ActualEvent.ever_online.is_(True)) == str(arg)
             for arg in filter_conditions_tuple
         )
         distinct_mock.all.assert_called_once()
@@ -1033,7 +1033,7 @@ class TestEventRepositoryGetEventsByDate:
         # Check that the filter was called and included Event.ever_online == True
         filter_conditions_tuple = join_mock.filter.call_args[0]
         assert any(
-            str(ActualEvent.ever_online == True) == str(arg)
+            str(ActualEvent.ever_online.is_(True)) == str(arg)
             for arg in filter_conditions_tuple
         )
         distinct_mock.all.assert_called_once()

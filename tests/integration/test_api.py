@@ -466,7 +466,7 @@ class TestEventsEndpoint:
         # Plan 1: Earlier, cheaper
         plan1_start = datetime(2025, 10, 5, 10, 0, 0, tzinfo=timezone.utc)
         plan1_end = plan1_start + timedelta(hours=2)
-        db_plan1 = _create_plan_with_zones(
+        _ = _create_plan_with_zones(
             session,
             db_event.id,
             provider_name,
@@ -484,7 +484,7 @@ class TestEventsEndpoint:
             2025, 10, 5, 14, 0, 0, tzinfo=timezone.utc
         )  # Same day, later
         plan2_end = plan2_start + timedelta(hours=3)
-        db_plan2 = _create_plan_with_zones(
+        _ = _create_plan_with_zones(
             session,
             db_event.id,
             provider_name,
@@ -521,7 +521,6 @@ class TestEventsEndpoint:
         """
         Test correct filtering and data for multiple events with varied properties.
         """
-        now = datetime.now(timezone.utc)
 
         # Event 1: Matches, should be returned
         event1_time = datetime(2025, 11, 10, 10, 0, 0, tzinfo=timezone.utc)

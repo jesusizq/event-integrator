@@ -299,7 +299,7 @@ class EventRepository:
             .options(joinedload(Event.event_plans).joinedload(EventPlan.zones))
             .join(EventPlan, Event.id == EventPlan.event_id)
             .filter(
-                Event.ever_online == True,
+                Event.ever_online.is_(True),
                 EventPlan.start_date >= starts_at,
                 EventPlan.start_date <= ends_at,
             )

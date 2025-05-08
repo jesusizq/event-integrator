@@ -1,4 +1,3 @@
-from flask import Blueprint
 from apifairy import arguments, response
 from . import events_bp as api
 from app.api.schemas import EventSearchQueryArgsSchema, SuccessResponseSchema

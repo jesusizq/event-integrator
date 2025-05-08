@@ -11,7 +11,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.extensions import db
-from app.models.enums import SellModeEnum
 import uuid
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 

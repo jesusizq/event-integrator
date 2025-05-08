@@ -28,9 +28,10 @@ def init_celery(app, celery_instance):
 def create_app(config_name: str | None = None):
     """Application factory."""
 
+    LOGGING_FORMAT = "[%(asctime)s.%(msecs)03d] [%(levelname)s] [%(name)s] %(message)s"
     logging.basicConfig(
         level=logging.INFO,
-        format="[%(asctime)s.%(msecs)03d] [%(levelname)s] [%(name)s] %(message)s",
+        format=LOGGING_FORMAT,
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
