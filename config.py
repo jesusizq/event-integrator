@@ -40,11 +40,12 @@ class Config:
     CELERY_RESULT_BACKEND = (
         os.environ.get("CELERY_RESULT_BACKEND") or "redis://localhost:6379/0"
     )
-    CELERY_TIMEZONE = "UTC"
-    CELERY_BEAT_SCHEDULE = {
-        "sync-provider-events-hourly": {
+    TIMEZONE = "UTC"
+
+    BEAT_SCHEDULE = {
+        "sync-provider-events-schedule": {
             "task": "app.tasks.sync.sync_provider_events",
-            "schedule": 3600.0,  # Every hour
+            "schedule": 15.0,  # Every 15 seconds to test the sync. In real scenarios, it should be every hour.
         },
     }
 

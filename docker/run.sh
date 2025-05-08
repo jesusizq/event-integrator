@@ -2,9 +2,10 @@
 
 usage() {
     SCRIPT_NAME=$(basename "$0")
-    echo "Usage: $SCRIPT_NAME [-n <name>] [-e <env>] [-d] [-c] [up|up-and-force|down|down-and-remove|stop|purge|stop-and-remove|--help]"
+    echo "Usage: $SCRIPT_NAME [-n <name>] [-e <env>] [-d] [-c] [up|up-and-force|build|down|down-and-remove|stop|purge|stop-and-remove|--help]"
     echo "  up              - Runs the container"
     echo "  up-and-force    - Runs the container and force recreate"
+    echo "  build           - Builds images without starting containers"
     echo "  down            - Stops containers"
     echo "  down-and-remove - Stops and removes containers, volumes, and images"
     echo "  stop            - Stops a container without removing it"
@@ -90,7 +91,7 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # Check if SERVICE is required for certain commands (must happen after COMMAND is known)
-if [ -z "$SERVICE" ] && [ "$COMMAND" != "up" ] && [ "$COMMAND" != "up-and-force" ] && [ "$COMMAND" != "down" ] && [ "$COMMAND" != "down-and-remove" ]; then
+if [ -z "$SERVICE" ] && [ "$COMMAND" != "up" ] && [ "$COMMAND" != "up-and-force" ] && [ "$COMMAND" != "build" ] && [ "$COMMAND" != "down" ] && [ "$COMMAND" != "down-and-remove" ]; then
     echo "ERROR: Service name is required for the command '$COMMAND'"
     usage
 fi
@@ -102,8 +103,6 @@ echo "Docker with $ENV_FILE"
 # Validate and run the command
 case "$COMMAND" in
     up)
-        echo "Building images..."
-        docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build $NO_CACHE
         echo "Starting containers..."
         docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up $DETACHED_MODE
         ;;
@@ -113,6 +112,10 @@ case "$COMMAND" in
         docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build $NO_CACHE
         echo "Starting containers with --force-recreate..."
         docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up $DETACHED_MODE --force-recreate
+        ;;
+    build)
+        echo "Building images..."
+        docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build $NO_CACHE
         ;;
     down)
         docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down

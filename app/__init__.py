@@ -10,9 +10,14 @@ def init_celery(app, celery_instance):
         broker_url=app.config.get("CELERY_BROKER_URL"),
         result_backend=app.config.get("CELERY_RESULT_BACKEND"),
         task_ignore_result=app.config.get("CELERY_TASK_IGNORE_RESULT", True),
+        timezone=app.config.get("TIMEZONE"),
     )
-    celery_instance.conf.CELERY_TIMEZONE = app.config.get("CELERY_TIMEZONE", "UTC")
-    celery_instance.conf.beat_schedule = app.config.get("CELERY_BEAT_SCHEDULE")
+
+    retrieved_schedule = app.config.get("BEAT_SCHEDULE")
+    app.logger.info(
+        f"Retrieved beat_schedule from app.config in init_celery: {retrieved_schedule}"
+    )
+    celery_instance.conf.beat_schedule = retrieved_schedule
 
     # Ensure tasks run within the application context
     class ContextTask(celery_instance.Task):
@@ -59,6 +64,8 @@ def create_app(config_name: str | None = None):
     cors.init_app(app)
     ma.init_app(app)  # Marshmallow before apifairy
     apifairy.init_app(app)
+
+    celery.autodiscover_tasks(["app.tasks"], related_name="sync")
     init_celery(app, celery)
 
     # Register blueprints

@@ -7,14 +7,12 @@ services:
       dockerfile: docker/Dockerfile
       target: app
     container_name: event_integrator_app
-    volumes:
-      - ../app:/home/appuser/app
-      - ../config.py:/home/appuser/config.py
-      - ../run.py:/home/appuser/run.py
     restart: always
+    volumes:
+      - ../migrations:/home/appuser/migrations
     depends_on:
-      db:
-        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:
@@ -35,7 +33,36 @@ services:
       PROVIDER_API_URL: ${PROVIDER_API_URL}
       PROVIDER_API_TIMEOUT: ${PROVIDER_API_TIMEOUT:-10}
       CACHE_TYPE: ${CACHE_TYPE:-RedisCache}
-      CACHE_REDIS_URL: ${CACHE_REDIS_URL:-redis://redis:6379/1}
+      CACHE_REDIS_URL: ${CACHE_REDIS_URL}
+      CACHE_DEFAULT_TIMEOUT: ${CACHE_DEFAULT_TIMEOUT:-300}
+
+  celery:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: app
+    container_name: event_integrator_celery
+    restart: always
+    command: >
+      sh -c "/home/appuser/.venv/bin/celery -A run:celery_app_instance worker -B -l DEBUG"
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-development}
+      FLASK_DEBUG: ${FLASK_DEBUG:-1}
+      FLASK_APP: ${FLASK_APP:-run.py}
+      FLASK_CONFIG: ${FLASK_CONFIG:-development}
+      DATABASE_URL: ${DATABASE_URL}
+      TEST_DATABASE_URL: ${TEST_DATABASE_URL}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+      PROVIDER_API_URL: ${PROVIDER_API_URL}
+      PROVIDER_API_TIMEOUT: ${PROVIDER_API_TIMEOUT:-10}
+      CACHE_TYPE: ${CACHE_TYPE:-RedisCache}
+      CACHE_REDIS_URL: ${CACHE_REDIS_URL}
       CACHE_DEFAULT_TIMEOUT: ${CACHE_DEFAULT_TIMEOUT:-300}
 
   db:
@@ -44,23 +71,42 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-eventsdb} # Use env var or default
+      POSTGRES_DB: ${POSTGRES_DB:-eventsdb}
       POSTGRES_USER: ${POSTGRES_USER:-user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     ports:
-      - "5432:5432" # Expose locally for debugging
+      - "5432:5432"
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  migrations:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: app
+    container_name: event_integrator_migrations
+    volumes:
+      - ../migrations:/home/appuser/migrations
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLASK_APP: ${FLASK_APP:-run.py}
+      FLASK_CONFIG: ${FLASK_CONFIG:-development}
+      DATABASE_URL: ${DATABASE_URL}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+    command: /home/appuser/migrations_entrypoint.sh
 
   redis:
     image: redis:7-alpine
     container_name: event_integrator_redis
     ports:
-      - "6379:6379" # Expose locally for debugging
+      - "6379:6379"
     restart: always
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

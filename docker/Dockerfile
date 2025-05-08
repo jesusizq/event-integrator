@@ -39,7 +39,7 @@ ENV POETRY_NO_INTERACTION=1
 ENV PATH="$POETRY_HOME/bin:/home/appuser/.venv/bin:$PATH"
 
 # Install curl for health checks
-RUN apt-get update && apt-get install --no-install-recommends -y curl && \
+RUN apt-get update && apt-get install --no-install-recommends -y curl postgresql-client && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
@@ -56,8 +56,15 @@ COPY --from=builder /app/source_code /home/appuser/app
 COPY --from=builder /app/config.py /home/appuser/config.py
 COPY --from=builder /app/run.py /home/appuser/run.py
 
+# Copy the migrations directory from the host into the image
+COPY ./migrations /home/appuser/migrations
+
+# Copy migrations entrypoint script
+COPY ./docker/entrypoints/migrations_entrypoint.sh /home/appuser/migrations_entrypoint.sh
+RUN chmod +x /home/appuser/migrations_entrypoint.sh
+
 # Ensure the appuser owns the necessary files and directories
-RUN chown -R appuser:appuser /home/appuser/pyproject.toml /home/appuser/poetry.lock /home/appuser/.venv $POETRY_HOME /home/appuser/app /home/appuser/config.py /home/appuser/run.py && \
+RUN chown -R appuser:appuser /home/appuser/pyproject.toml /home/appuser/poetry.lock /home/appuser/.venv $POETRY_HOME /home/appuser/app /home/appuser/config.py /home/appuser/run.py /home/appuser/migrations_entrypoint.sh && \
     chown appuser:appuser /home/appuser
 
 # Fix shebang lines in virtual environment scripts to point to the correct Python path

@@ -1,5 +1,6 @@
 .env
-.env.test
+.env.*
+!/.env.example
 __pycache__/
 
 # Created by https://www.toptal.com/developers/gitignore/api/macos,linux,pycharm,visualstudiocode
