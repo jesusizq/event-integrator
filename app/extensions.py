@@ -15,10 +15,4 @@ apifairy = APIFairy()
 cors = CORS()
 ma = Marshmallow()
 celery = Celery()
-cache = Cache(  # Keep this initialization with config
-    config={
-        "CACHE_TYPE": "FileSystemCache",
-        "CACHE_DIR": os.path.join(tempfile.gettempdir(), "cache"),
-        "CACHE_DEFAULT_TIMEOUT": 300,  # 5 minutes
-    }
-)
+cache = Cache()

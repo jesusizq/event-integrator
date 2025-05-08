@@ -25,6 +25,15 @@ class Config:
         # },
     ]
 
+    # Cache settings
+    CACHE_TYPE = os.environ.get("CACHE_TYPE") or "RedisCache"
+    CACHE_REDIS_URL = (
+        os.environ.get("CACHE_REDIS_URL") or "redis://localhost:6379/1"
+    )  # Use DB 1 for cache (db 0 is typically used by Celery)
+    CACHE_DEFAULT_TIMEOUT = int(
+        os.environ.get("CACHE_DEFAULT_TIMEOUT") or 300
+    )  # 5 minutes default
+
     CELERY_BROKER_URL = (
         os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"
     )
@@ -66,6 +75,8 @@ class TestingConfig(Config):
     )
     CELERY_TASK_ALWAYS_EAGER = True  # Ensure tasks are executed immediately
     CELERY_TASK_EAGER_PROPAGATES = True  # Ensure task results are propagated
+
+    CACHE_TYPE = "NullCache"
 
 
 config = {

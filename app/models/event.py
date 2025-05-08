@@ -47,6 +47,7 @@ class Event(db.Model):
         ),
         Index("idx_event_last_seen_at", "last_seen_at"),
         Index("idx_event_ever_online", "ever_online"),
+        Index("idx_event_provider_name", "provider_name"),
     )
 
     def __repr__(self):
@@ -93,6 +94,8 @@ class EventPlan(db.Model):
             name="uq_plan_base_id_provider_event",
         ),
         Index("idx_event_plan_last_seen_at", "last_seen_at"),
+        Index("idx_event_plan_provider_name", "provider_name"),
+        Index("idx_event_plan_start_end_date", "start_date", "end_date"),
     )
 
     def __repr__(self):

@@ -1,7 +1,7 @@
 from apifairy import arguments, response
 from . import events_bp as api
 from app.api.schemas import EventSearchQueryArgsSchema, SuccessResponseSchema
-from app.extensions import db
+from app.extensions import db, cache
 from app.models.repository import EventRepository
 from app.models.event import Event
 from datetime import datetime
@@ -63,6 +63,7 @@ def _transform_event_to_summary(event: Event) -> dict:
 @api.route("/search", methods=["GET"])
 @arguments(EventSearchQueryArgsSchema)
 @response(SuccessResponseSchema, 200)
+@cache.cached()
 def search_events(args: dict):
     """
     Lists the available events within a specified time range.
