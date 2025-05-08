@@ -18,27 +18,15 @@ usage() {
     exit 1
 }
 
-# Store all arguments
-ALL_ARGS="$@"
-
 # Initialize variables
 SERVICE=""
-COMMAND=""
 ENV="dev"
 DETACHED_MODE=""
 NO_CACHE=""
+# COMMAND will be determined after options are parsed
 
-# First, find the command in the arguments
-for arg in $ALL_ARGS; do
-    case "$arg" in
-        up|up-and-force|down|down-and-remove|stop|purge|stop-and-remove)
-            COMMAND="$arg"
-            ;;
-    esac
-done
-
-# Then process options
-while getopts ":n:e:d:c" opt; do
+# Process options. Options must come before the command.
+while getopts ":n:e:dc" opt; do
     case ${opt} in
         n )
             SERVICE=$OPTARG
@@ -54,18 +42,33 @@ while getopts ":n:e:d:c" opt; do
                     ;;
             esac
             ;;
-        d ) # Handle the -d option
+        d )
             DETACHED_MODE="-d"
             ;;
-        c ) # Handle the -c option
+        c )
             NO_CACHE="--no-cache"
             ;;
-        \? )
-            echo "Invalid option: $OPTARG" 1>&2
+        \\? ) # Invalid option
+            echo "Invalid option: -$OPTARG" 1>&2
+            usage
+            ;;
+        : ) # Missing option argument
+            echo "Option -$OPTARG requires an argument." 1>&2
             usage
             ;;
     esac
 done
+
+# Shift away the parsed options and their arguments
+shift $((OPTIND - 1))
+
+# The first remaining positional argument is the command
+COMMAND="$1"
+
+# Handle --help command
+if [ "$COMMAND" = "--help" ]; then
+    usage
+fi
 
 # Set ENV_FILE based on environment
 case "$ENV" in
@@ -80,16 +83,13 @@ case "$ENV" in
         ;;
 esac
 
-# Check if we have a command
+# Check if a command was provided
 if [ -z "$COMMAND" ]; then
-    if [ "$1" = "--help" ]; then
-        usage
-    fi
     echo "ERROR: No valid command specified"
     usage
 fi
 
-# Check if SERVICE is required for the command
+# Check if SERVICE is required for certain commands (must happen after COMMAND is known)
 if [ -z "$SERVICE" ] && [ "$COMMAND" != "up" ] && [ "$COMMAND" != "up-and-force" ] && [ "$COMMAND" != "down" ] && [ "$COMMAND" != "down-and-remove" ]; then
     echo "ERROR: Service name is required for the command '$COMMAND'"
     usage
@@ -99,7 +99,7 @@ COMPOSE_FILE="docker/docker-compose.yml"
 
 echo "Docker with $ENV_FILE"
 
-# Run the command
+# Validate and run the command
 case "$COMMAND" in
     up)
         echo "Building images..."
@@ -134,7 +134,7 @@ case "$COMMAND" in
         docker compose -f "$COMPOSE_FILE" rm -f "$SERVICE"
         ;;
     *)
-        echo "ERROR: Invalid command."
+        echo "ERROR: Invalid command: '$COMMAND'"
         usage
         ;;
 esac
