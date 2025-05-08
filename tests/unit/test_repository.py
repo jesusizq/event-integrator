@@ -141,49 +141,68 @@ def event_repository(mock_db_session):
     return EventRepository(mock_db_session)
 
 
+@pytest.fixture
+def mock_upsert_dependencies(mock_db_session):
+    with patch("app.models.repository.datetime") as mock_datetime, patch(
+        "app.models.repository.Event"
+    ) as mock_event_class, patch(
+        "app.models.repository.EventPlan"
+    ) as mock_plan_class, patch(
+        "app.models.repository.Zone"
+    ) as mock_zone_class:
+
+        mock_datetime.now.return_value = FIXED_TIME
+
+        # Ensure that when the repository uses the patched model classes (e.g., Event, EventPlan, Zone)
+        # in db_session.query(ModelFromRepositoryModule), these queries are routed to the
+        # mock query chains that were set up for their ActualModel counterparts.
+        mock_db_session.query_route_map[mock_event_class] = (
+            mock_db_session.query_chain_mocks_for_actual_types[ActualEvent]
+        )
+        mock_db_session.query_route_map[mock_plan_class] = (
+            mock_db_session.query_chain_mocks_for_actual_types[ActualEventPlan]
+        )
+        mock_db_session.query_route_map[mock_zone_class] = (
+            mock_db_session.query_chain_mocks_for_actual_types[ActualZone]
+        )
+
+        yield mock_datetime, mock_event_class, mock_plan_class, mock_zone_class
+
+
+@pytest.fixture
+def mock_func_timedelta():
+    with patch("app.models.repository.func") as mock_sql_func:
+        mock_sql_func.timedelta.return_value = timedelta(seconds=1)
+        yield mock_sql_func
+
+
 FIXED_TIME = datetime(2025, 7, 26, 10, 0, 0, tzinfo=timezone.utc)
 
 
 class TestEventRepositoryUpsertEvents:
-    @patch("app.models.repository.datetime")
-    @patch("app.models.repository.Event")
-    @patch("app.models.repository.EventPlan")
-    @patch("app.models.repository.Zone")
     def test_upsert_single_new_event_online(
         self,
-        mock_zone_model,
-        mock_plan_model,
-        mock_event_model,
-        mock_datetime,
+        mock_upsert_dependencies,
         event_repository,
         mock_db_session,
         app_context,
     ):
-        # Route queries for mocked models to the correct query chains
-        mock_db_session.query_route_map[mock_event_model] = (
-            mock_db_session.query_chain_mocks_for_actual_types[ActualEvent]
+        mock_datetime, mock_event_class, mock_plan_class, mock_zone_class = (
+            mock_upsert_dependencies
         )
-        mock_db_session.query_route_map[mock_plan_model] = (
-            mock_db_session.query_chain_mocks_for_actual_types[ActualEventPlan]
-        )
-        mock_db_session.query_route_map[mock_zone_model] = (
-            mock_db_session.query_chain_mocks_for_actual_types[ActualZone]
-        )
-
-        mock_datetime.now.return_value = FIXED_TIME
 
         # Prepare mock model instances
         mock_event_instance = MagicMock(spec=ActualEvent)
         mock_event_instance.id = uuid4()
         mock_event_instance.provider_name = "test_provider"
-        mock_event_model.return_value = mock_event_instance
+        mock_event_class.return_value = mock_event_instance
 
         mock_plan_instance = MagicMock(spec=ActualEventPlan)
         mock_plan_instance.id = uuid4()
-        mock_plan_model.return_value = mock_plan_instance
+        mock_plan_class.return_value = mock_plan_instance
 
         mock_zone_instance = MagicMock(spec=ActualZone)
-        mock_zone_model.return_value = mock_zone_instance
+        mock_zone_class.return_value = mock_zone_instance
 
         parsed_zone = create_parsed_zone(
             zone_id="z1", name="Zone A", price=25.0, capacity=50
@@ -202,7 +221,7 @@ class TestEventRepositoryUpsertEvents:
         )
 
         # Assert Event creation
-        mock_event_model.assert_called_once_with(
+        mock_event_class.assert_called_once_with(
             base_event_id="e1",
             provider_name="test_provider",
             title="New Event",
@@ -215,7 +234,7 @@ class TestEventRepositoryUpsertEvents:
         assert mock_event_instance.last_seen_at == FIXED_TIME
 
         # Assert EventPlan creation
-        mock_plan_model.assert_called_once_with(
+        mock_plan_class.assert_called_once_with(
             event_id=mock_event_instance.id,
             base_plan_id="p1",
             provider_name="test_provider",
@@ -229,7 +248,7 @@ class TestEventRepositoryUpsertEvents:
         assert mock_plan_instance.last_seen_at == FIXED_TIME
 
         # Assert Zone creation
-        mock_zone_model.assert_called_once_with(
+        mock_zone_class.assert_called_once_with(
             event_plan_id=mock_plan_instance.id,
             zone_id="z1",
             name="Zone A",
@@ -249,59 +268,56 @@ class TestEventRepositoryUpsertEvents:
         )  # Batch commit + Stale marking commit
         mock_db_session.rollback.assert_not_called()
 
-    @patch("app.models.repository.datetime")
-    def test_upsert_existing_event(
-        self, mock_datetime, event_repository, mock_db_session, app_context
+    def _setup_existing_db_entities_and_mocks(
+        self, mock_db_session, event_details, plan_details, zone_details
     ):
-        mock_datetime.now.return_value = FIXED_TIME
-        original_first_seen_at = FIXED_TIME - timedelta(days=1)
-        event_uuid = uuid4()
-        plan_uuid = uuid4()
-        zone_uuid = uuid4()
+        event_uuid, original_first_seen_at = (
+            event_details["id"],
+            event_details["first_seen_at"],
+        )
+        plan_uuid = plan_details["id"]
 
-        # Prepare existing mock model instances with all accessed attributes defined
         existing_event = MagicMock(
             spec=ActualEvent,
             id=event_uuid,
-            base_event_id="e1",
-            provider_name="test_provider",
-            title="Old Event Title",
-            sell_mode="offline",
-            organizer_company_id="org1",
+            base_event_id=event_details["base_event_id"],
+            provider_name=event_details["provider_name"],
+            title=event_details["title"],
+            sell_mode=event_details["sell_mode"],
+            organizer_company_id=event_details["organizer_company_id"],
             first_seen_at=original_first_seen_at,
             last_seen_at=original_first_seen_at,
-            ever_online=False,
+            ever_online=event_details["ever_online"],
         )
 
         existing_plan = MagicMock(
             spec=ActualEventPlan,
             id=plan_uuid,
             event_id=event_uuid,
-            base_plan_id="p1",
-            provider_name="test_provider",
-            start_date=datetime(2024, 12, 31, 10, 0, 0, tzinfo=timezone.utc),
-            end_date=datetime(2024, 12, 31, 12, 0, 0, tzinfo=timezone.utc),
-            sell_from=datetime(2023, 11, 1, 0, 0, 0, tzinfo=timezone.utc),
-            sell_to=datetime(2024, 12, 31, 9, 0, 0, tzinfo=timezone.utc),
-            sold_out=True,
+            base_plan_id=plan_details["base_plan_id"],
+            provider_name=plan_details["provider_name"],
+            start_date=plan_details["start_date"],
+            end_date=plan_details["end_date"],
+            sell_from=plan_details["sell_from"],
+            sell_to=plan_details["sell_to"],
+            sold_out=plan_details["sold_out"],
             first_seen_at=original_first_seen_at,
             last_seen_at=original_first_seen_at,
         )
 
         existing_zone = MagicMock(
             spec=ActualZone,
-            id=zone_uuid,
+            id=zone_details["id"],
             event_plan_id=plan_uuid,
-            zone_id="z1",
-            name="Old Zone Name",
-            capacity=50,
-            price=20.0,
-            is_numbered=True,
+            zone_id=zone_details["zone_id"],
+            name=zone_details["name"],
+            capacity=zone_details["capacity"],
+            price=zone_details["price"],
+            is_numbered=zone_details["is_numbered"],
             first_seen_at=original_first_seen_at,
             last_seen_at=original_first_seen_at,
         )
 
-        # Configure mock_db_session
         query_mock_event = mock_db_session.query_chain_mocks_for_actual_types[
             ActualEvent
         ]
@@ -311,16 +327,63 @@ class TestEventRepositoryUpsertEvents:
         query_mock_zone = mock_db_session.query_chain_mocks_for_actual_types[ActualZone]
 
         query_mock_event.filter_by(
-            base_event_id="e1", provider_name="test_provider"
+            base_event_id=event_details["base_event_id"],
+            provider_name=event_details["provider_name"],
         ).first.return_value = existing_event
 
         query_mock_plan.filter_by(
-            event_id=existing_event.id, base_plan_id="p1", provider_name="test_provider"
+            event_id=existing_event.id,
+            base_plan_id=plan_details["base_plan_id"],
+            provider_name=plan_details["provider_name"],
         ).first.return_value = existing_plan
 
         query_mock_zone.filter_by(
-            event_plan_id=existing_plan.id, zone_id="z1"
+            event_plan_id=existing_plan.id, zone_id=zone_details["zone_id"]
         ).first.return_value = existing_zone
+
+        return existing_event, existing_plan, existing_zone
+
+    @patch("app.models.repository.datetime")
+    def test_upsert_existing_event(
+        self, mock_datetime, event_repository, mock_db_session, app_context
+    ):
+        mock_datetime.now.return_value = FIXED_TIME
+        original_first_seen_at = FIXED_TIME - timedelta(days=1)
+
+        event_details = {
+            "id": uuid4(),
+            "base_event_id": "e1",
+            "provider_name": "test_provider",
+            "title": "Old Event Title",
+            "sell_mode": "offline",
+            "organizer_company_id": "org1",
+            "first_seen_at": original_first_seen_at,
+            "ever_online": False,
+        }
+        plan_details = {
+            "id": uuid4(),
+            "base_plan_id": "p1",
+            "provider_name": "test_provider",
+            "start_date": datetime(2024, 12, 31, 10, 0, 0, tzinfo=timezone.utc),
+            "end_date": datetime(2024, 12, 31, 12, 0, 0, tzinfo=timezone.utc),
+            "sell_from": datetime(2023, 11, 1, 0, 0, 0, tzinfo=timezone.utc),
+            "sell_to": datetime(2024, 12, 31, 9, 0, 0, tzinfo=timezone.utc),
+            "sold_out": True,
+        }
+        zone_details = {
+            "id": uuid4(),
+            "zone_id": "z1",
+            "name": "Old Zone Name",
+            "capacity": 50,
+            "price": 20.0,
+            "is_numbered": True,
+        }
+
+        existing_event, existing_plan, existing_zone = (
+            self._setup_existing_db_entities_and_mocks(
+                mock_db_session, event_details, plan_details, zone_details
+            )
+        )
 
         # New data for update
         updated_parsed_zone = create_parsed_zone(
@@ -382,11 +445,11 @@ class TestEventRepositoryUpsertEvents:
         provider_name = "test_provider"
 
         # For this test, since events_data is empty, _upsert_event and its children are not called.
-        # We are testing the final block in `upsert_events` that handles provider_name_filter.
         event_repository.upsert_events([], provider_name_filter=provider_name)
 
         # Assert that an update was attempted on Event table for the given provider
         # to mark events not seen in the (empty) feed.
+        # The Event class used by repository for .last_seen_at is ActualEvent
         mock_db_session.query(ActualEvent).filter(
             ActualEvent.provider_name == provider_name,
             ActualEvent.base_event_id.notin_([]),
@@ -398,18 +461,14 @@ class TestEventRepositoryUpsertEvents:
         mock_db_session.commit.assert_called()
         mock_db_session.rollback.assert_not_called()
 
-    @patch("app.models.repository.datetime")
-    @patch("app.models.repository.func")
     def test_upsert_plan_marks_old_zones(
         self,
-        mock_sql_func,
-        mock_datetime,
+        mock_upsert_dependencies,
         event_repository,
         mock_db_session,
         app_context,
     ):
-        mock_datetime.now.return_value = FIXED_TIME
-        mock_sql_func.timedelta.return_value = timedelta(seconds=1)
+        _, _, _, mock_zone_class = mock_upsert_dependencies
 
         provider_name = "test_provider"
         event_id_uuid = uuid4()
@@ -450,26 +509,23 @@ class TestEventRepositoryUpsertEvents:
 
         # Assert that an update was attempted on Zone table for the given plan
         # to mark zones not seen in the (empty) zones list for that plan.
+        # The repository code uses mock_zone_class.last_seen_at for the update key after patching.
         query_mock_zone.filter(
             ActualZone.event_plan_id == existing_plan.id,
             ActualZone.zone_id.notin_([]),  # seen_zone_ids_in_provider_feed is empty
         ).update.assert_called_once_with(
-            {ActualZone.last_seen_at: FIXED_TIME - timedelta(seconds=1)},
+            {mock_zone_class.last_seen_at: FIXED_TIME - timedelta(seconds=1)},
             synchronize_session=False,
         )
 
-    @patch("app.models.repository.datetime")
-    @patch("app.models.repository.func")
     def test_upsert_event_marks_old_plans(
         self,
-        mock_sql_func,
-        mock_datetime,
+        mock_upsert_dependencies,
         event_repository,
         mock_db_session,
         app_context,
     ):
-        mock_datetime.now.return_value = FIXED_TIME
-        mock_sql_func.timedelta.return_value = timedelta(seconds=1)
+        _, _, mock_plan_class, _ = mock_upsert_dependencies
 
         provider_name = "test_provider"
         event_id_uuid = uuid4()
@@ -492,20 +548,19 @@ class TestEventRepositoryUpsertEvents:
 
         # Assert that an update was attempted on EventPlan table for the given event
         # to mark plans not seen in the (empty) plans list for that event.
+        # The repository code uses mock_plan_class.last_seen_at for the update key after patching.
         query_mock_event_plan.filter(
             ActualEventPlan.event_id == existing_event.id,
             ActualEventPlan.provider_name == provider_name,
             ActualEventPlan.base_plan_id.notin_([]),
         ).update.assert_called_once_with(
-            {ActualEventPlan.last_seen_at: FIXED_TIME - timedelta(seconds=1)},
+            {mock_plan_class.last_seen_at: FIXED_TIME - timedelta(seconds=1)},
             synchronize_session=False,
         )
 
-    @patch("app.models.repository.datetime")
     def test_upsert_events_sqlalchemy_error_on_commit(
-        self, mock_datetime, event_repository, mock_db_session, app_context
+        self, event_repository, mock_db_session, app_context
     ):
-        mock_datetime.now.return_value = FIXED_TIME
         parsed_event_data = create_parsed_event(
             event_id="e1", provider_name="test_provider"
         )
@@ -525,15 +580,14 @@ class TestEventRepositoryUpsertEvents:
         mock_db_session.commit.assert_called_once()
         mock_db_session.rollback.assert_called_once()
 
-    @patch("app.models.repository.datetime")
     def test_upsert_events_skips_event_with_missing_provider_name_in_parsed_data(
         self,
-        mock_datetime,
+        mock_upsert_dependencies,
         event_repository,
         mock_db_session,
         app_context,
     ):
-        mock_datetime.now.return_value = FIXED_TIME
+        _, mock_event_class, mock_plan_class, mock_zone_class = mock_upsert_dependencies
 
         valid_parsed_event = create_parsed_event(
             event_id="e_valid", provider_name="test_provider", title="Valid Event"
@@ -568,7 +622,7 @@ class TestEventRepositoryUpsertEvents:
         mock_event_instance.id = uuid4()
         mock_event_instance.provider_name = valid_parsed_event.provider_name
 
-        def mock_event_constructor(*args, **kwargs):
+        def mock_event_constructor_side_effect(*args, **kwargs):
             if kwargs.get("base_event_id") == "e_valid":
                 return mock_event_instance
             m = MagicMock(spec=ActualEvent)
@@ -576,39 +630,18 @@ class TestEventRepositoryUpsertEvents:
             m.provider_name = kwargs.get("provider_name")
             return m
 
-        with patch(
-            "app.models.repository.Event", side_effect=mock_event_constructor
-        ) as mock_event_model_constructor, patch(
-            "app.models.repository.EventPlan"
-        ) as mock_plan_model_constructor, patch(
-            "app.models.repository.Zone"
-        ) as mock_zone_model_constructor:
-            # Add routing for these locally patched constructors
-            mock_db_session.query_route_map[mock_event_model_constructor] = (
-                mock_db_session.query_chain_mocks_for_actual_types[ActualEvent]
-            )
-            mock_db_session.query_route_map[mock_plan_model_constructor] = (
-                mock_db_session.query_chain_mocks_for_actual_types[ActualEventPlan]
-            )
-            mock_db_session.query_route_map[mock_zone_model_constructor] = (
-                mock_db_session.query_chain_mocks_for_actual_types[ActualZone]
-            )
+        mock_event_class.side_effect = mock_event_constructor_side_effect
+        mock_plan_class.return_value = MagicMock(spec=ActualEventPlan, id=uuid4())
+        mock_zone_class.return_value = MagicMock(spec=ActualZone, id=uuid4())
 
-            mock_plan_model_constructor.return_value = MagicMock(
-                spec=ActualEventPlan, id=uuid4()
-            )
-            mock_zone_model_constructor.return_value = MagicMock(
-                spec=ActualZone, id=uuid4()
-            )
-
-            event_repository.upsert_events(
-                [
-                    valid_parsed_event,
-                    invalid_parsed_event_provider,
-                    invalid_parsed_event_id,
-                ],
-                provider_name_filter="test_provider",
-            )
+        event_repository.upsert_events(
+            [
+                valid_parsed_event,
+                invalid_parsed_event_provider,
+                invalid_parsed_event_id,
+            ],
+            provider_name_filter="test_provider",
+        )
 
         # Assert that add was called for the valid event's objects
         # This assumes _upsert_event for the valid event proceeds to add event, plan, zone
@@ -620,11 +653,9 @@ class TestEventRepositoryUpsertEvents:
         )  # Batch commit + Stale marking commit
         mock_db_session.rollback.assert_not_called()  # No rollback if only skipping
 
-    @patch("app.models.repository.datetime")
     def test_upsert_event_value_error_in_upsert_event_internal(
-        self, mock_datetime, event_repository, mock_db_session, app_context
+        self, mock_upsert_dependencies, event_repository, mock_db_session, app_context
     ):
-        mock_datetime.now.return_value = FIXED_TIME
         parsed_event = create_parsed_event(event_id="e1", provider_name="test_provider")
 
         # Make the internal _upsert_event raise a ValueError (e.g. if provider_name was None on ParsedEvent, which it checks).
@@ -644,12 +675,9 @@ class TestEventRepositoryUpsertEvents:
         mock_db_session.rollback.assert_not_called()
 
     @patch("app.models.repository.EVENT_UPSERT_BATCH_SIZE", 2)
-    @patch("app.models.repository.datetime")
     def test_upsert_events_processes_in_batches(
-        self, mock_datetime, event_repository, mock_db_session, app_context
+        self, mock_upsert_dependencies, event_repository, mock_db_session, app_context
     ):
-        mock_datetime.now.return_value = FIXED_TIME
-
         # Create 3 events to test batching (batch size is 2)
         parsed_event1 = create_parsed_event(event_id="e1", provider_name="p1")
         parsed_event2 = create_parsed_event(event_id="e2", provider_name="p1")
@@ -671,17 +699,14 @@ class TestEventRepositoryUpsertEvents:
         assert mock_db_session.commit.call_count == 3  # 2 for batches + 1 for stale
         mock_db_session.rollback.assert_not_called()
 
-    @patch("app.models.repository.datetime")
-    @patch("app.models.repository.Event")
     def test_upsert_event_handles_invalid_sell_mode(
         self,
-        mock_event_model,
-        mock_datetime,
+        mock_upsert_dependencies,
         event_repository,
         mock_db_session,
         app_context,
     ):
-        mock_datetime.now.return_value = FIXED_TIME
+        _, mock_event_class, _, _ = mock_upsert_dependencies
         parsed_event_data = create_parsed_event(
             event_id="e_invalid_sell",
             sell_mode="non_existent_mode",  # Invalid sell_mode
@@ -697,14 +722,14 @@ class TestEventRepositoryUpsertEvents:
         created_event_instance = MagicMock(spec=ActualEvent)
         created_event_instance.id = uuid4()
         created_event_instance.ever_online = False
-        mock_event_model.return_value = created_event_instance
+        mock_event_class.return_value = created_event_instance
 
         event_repository.upsert_events(
             [parsed_event_data], provider_name_filter="test_provider"
         )
 
         # Assert Event creation with sell_mode being None (or not set to invalid value)
-        mock_event_model.assert_called_once_with(
+        mock_event_class.assert_called_once_with(
             base_event_id="e_invalid_sell",
             provider_name="test_provider",
             title=parsed_event_data.title,
@@ -720,17 +745,14 @@ class TestEventRepositoryUpsertEvents:
             mock_db_session.commit.call_count == 2
         )  # Batch commit + Stale marking commit
 
-    @patch("app.models.repository.datetime")
-    @patch("app.models.repository.Event")
     def test_upsert_event_handles_valid_sell_mode(
         self,
-        mock_event_model,
-        mock_datetime,
+        mock_upsert_dependencies,
         event_repository,
         mock_db_session,
         app_context,
     ):
-        mock_datetime.now.return_value = FIXED_TIME
+        _, mock_event_class, _, _ = mock_upsert_dependencies
         parsed_event_data = create_parsed_event(
             event_id="e_offline_sell",
             sell_mode="offline",
@@ -743,13 +765,13 @@ class TestEventRepositoryUpsertEvents:
         created_event_instance = MagicMock(spec=ActualEvent)
         created_event_instance.id = uuid4()
         created_event_instance.ever_online = False
-        mock_event_model.return_value = created_event_instance
+        mock_event_class.return_value = created_event_instance
 
         event_repository.upsert_events(
             [parsed_event_data], provider_name_filter="test_provider"
         )
 
-        mock_event_model.assert_called_once_with(
+        mock_event_class.assert_called_once_with(
             base_event_id="e_offline_sell",
             provider_name="test_provider",
             title=parsed_event_data.title,
@@ -765,32 +787,14 @@ class TestEventRepositoryUpsertEvents:
             mock_db_session.commit.call_count == 2
         )  # Batch commit + Stale marking commit
 
-    @patch("app.models.repository.datetime")
-    @patch("app.models.repository.Event")
-    @patch("app.models.repository.EventPlan")
-    @patch("app.models.repository.Zone")
     def test_upsert_events_skips_mismatched_provider_filter(
         self,
-        mock_zone_model,
-        mock_plan_model,
-        mock_event_model,
-        mock_datetime,
+        mock_upsert_dependencies,
         event_repository,
         mock_db_session,
         app_context,
     ):
-        # Route queries for mocked models to the correct query chains
-        mock_db_session.query_route_map[mock_event_model] = (
-            mock_db_session.query_chain_mocks_for_actual_types[ActualEvent]
-        )
-        mock_db_session.query_route_map[mock_plan_model] = (
-            mock_db_session.query_chain_mocks_for_actual_types[ActualEventPlan]
-        )
-        mock_db_session.query_route_map[mock_zone_model] = (
-            mock_db_session.query_chain_mocks_for_actual_types[ActualZone]
-        )
-
-        mock_datetime.now.return_value = FIXED_TIME
+        _, mock_event_class, mock_plan_class, mock_zone_class = mock_upsert_dependencies
         target_provider = "target_provider"
         other_provider = "other_provider"
 
@@ -844,16 +848,15 @@ class TestEventRepositoryUpsertEvents:
         def event_constructor_side_effect(*args, **kwargs):
             if kwargs.get("base_event_id") == "e_match":
                 # For the event that should be processed, return our specific mock
-                # This mock will then be used in _upsert_event_plan etc.
                 return created_event_instance
-            # For any other potential calls (which shouldn't happen for Event constructor in this test's logic path for skipped events)
-            # return a generic mock.
             generic_mock = MagicMock(spec=ActualEvent)
             generic_mock.id = uuid4()
             generic_mock.provider_name = kwargs.get("provider_name")
             return generic_mock
 
-        mock_event_model.side_effect = event_constructor_side_effect
+        mock_event_class.side_effect = event_constructor_side_effect
+        mock_plan_class.return_value = MagicMock(spec=ActualEventPlan, id=uuid4())
+        mock_zone_class.return_value = MagicMock(spec=ActualZone, id=uuid4())
 
         with patch.object(
             event_repository, "_upsert_event", wraps=event_repository._upsert_event
@@ -865,7 +868,7 @@ class TestEventRepositoryUpsertEvents:
         spy_upsert_event.assert_called_once_with(event_matching_filter, FIXED_TIME)
 
         # Check calls to the constructor of Event model
-        call_kwargs_list = [kwargs for _, kwargs in mock_event_model.call_args_list]
+        call_kwargs_list = [kwargs for _, kwargs in mock_event_class.call_args_list]
         assert (
             len(
                 [
@@ -908,8 +911,8 @@ class TestEventRepositoryUpsertEvents:
         )
 
         # The Event object used for attribute access in the repository's filter/update
-        # for stale marking is app.models.repository.Event, which is patched to mock_event_model.
-        event_attr_source_for_stale_logic = mock_event_model
+        # for stale marking is app.models.repository.Event, which is patched to mock_event_class.
+        event_attr_source_for_stale_logic = mock_event_class
 
         stale_time_expected = FIXED_TIME - timedelta(seconds=1)
 
@@ -924,10 +927,27 @@ class TestEventRepositoryUpsertEvents:
         )
 
 
+@pytest.fixture
+def mock_get_events_query_chain(mock_db_session):
+    query_mock_event_chain = mock_db_session.query_chain_mocks_for_actual_types[
+        ActualEvent
+    ]
+
+    options_mock = query_mock_event_chain.options.return_value
+    join_mock = options_mock.join.return_value
+    filter_mock = join_mock.filter.return_value
+    distinct_mock = filter_mock.distinct.return_value
+
+    yield query_mock_event_chain, options_mock, join_mock, filter_mock, distinct_mock
+
+
 class TestEventRepositoryGetEventsByDate:
     def test_get_events_by_date_returns_matching_events(
-        self, event_repository, mock_db_session, app_context
+        self, event_repository, mock_get_events_query_chain, app_context
     ):
+        query_mock_event_chain, options_mock, join_mock, filter_mock, distinct_mock = (
+            mock_get_events_query_chain
+        )
         starts_at = datetime(2025, 1, 10, 0, 0, 0, tzinfo=timezone.utc)
         ends_at = datetime(2025, 1, 20, 0, 0, 0, tzinfo=timezone.utc)
 
@@ -942,13 +962,6 @@ class TestEventRepositoryGetEventsByDate:
         mock_event1.event_plans = [mock_plan1]
 
         # Configure the mock session query result
-        query_mock_event_chain = mock_db_session.query_chain_mocks_for_actual_types[
-            ActualEvent
-        ]
-        options_mock = query_mock_event_chain.options.return_value
-        join_mock = options_mock.join.return_value
-        filter_mock = join_mock.filter.return_value
-        distinct_mock = filter_mock.distinct.return_value
         distinct_mock.all.return_value = [mock_event1]
 
         result = event_repository.get_events_by_date(starts_at, ends_at)
@@ -984,19 +997,13 @@ class TestEventRepositoryGetEventsByDate:
         )
 
     def test_get_events_by_date_returns_empty_if_no_match(
-        self, event_repository, mock_db_session, app_context
+        self, event_repository, mock_get_events_query_chain, app_context
     ):
+        _, _, join_mock, _, distinct_mock = mock_get_events_query_chain
         starts_at = datetime(2025, 1, 10, 0, 0, 0, tzinfo=timezone.utc)
         ends_at = datetime(2025, 1, 20, 0, 0, 0, tzinfo=timezone.utc)
 
         # Configure mock_db_session...all() to return an empty list
-        query_mock_event_chain = mock_db_session.query_chain_mocks_for_actual_types[
-            ActualEvent
-        ]
-        options_mock = query_mock_event_chain.options.return_value
-        join_mock = options_mock.join.return_value
-        filter_mock = join_mock.filter.return_value
-        distinct_mock = filter_mock.distinct.return_value
         distinct_mock.all.return_value = []
 
         result = event_repository.get_events_by_date(starts_at, ends_at)
@@ -1004,9 +1011,7 @@ class TestEventRepositoryGetEventsByDate:
         assert result == []
 
         # Check that the filter was called and included Event.ever_online == True
-        filter_conditions_tuple = query_mock_event_chain.options.return_value.join.return_value.filter.call_args[
-            0
-        ]
+        filter_conditions_tuple = join_mock.filter.call_args[0]
         assert any(
             str(ActualEvent.ever_online == True) == str(arg)
             for arg in filter_conditions_tuple
@@ -1014,27 +1019,19 @@ class TestEventRepositoryGetEventsByDate:
         distinct_mock.all.assert_called_once()
 
     def test_get_events_by_date_filters_not_ever_online(
-        self, event_repository, mock_db_session, app_context
+        self, event_repository, mock_get_events_query_chain, app_context
     ):
+        _, _, join_mock, _, distinct_mock = mock_get_events_query_chain
         starts_at = datetime(2025, 1, 10, 0, 0, 0, tzinfo=timezone.utc)
         ends_at = datetime(2025, 1, 20, 0, 0, 0, tzinfo=timezone.utc)
 
-        query_mock_event_chain = mock_db_session.query_chain_mocks_for_actual_types[
-            ActualEvent
-        ]
-        options_mock = query_mock_event_chain.options.return_value
-        join_mock = options_mock.join.return_value
-        filter_mock = join_mock.filter.return_value
-        distinct_mock = filter_mock.distinct.return_value
         distinct_mock.all.return_value = []
 
         result = event_repository.get_events_by_date(starts_at, ends_at)
         assert result == []
 
         # Check that the filter was called and included Event.ever_online == True
-        filter_conditions_tuple = query_mock_event_chain.options.return_value.join.return_value.filter.call_args[
-            0
-        ]
+        filter_conditions_tuple = join_mock.filter.call_args[0]
         assert any(
             str(ActualEvent.ever_online == True) == str(arg)
             for arg in filter_conditions_tuple
@@ -1042,28 +1039,19 @@ class TestEventRepositoryGetEventsByDate:
         distinct_mock.all.assert_called_once()
 
     def test_get_events_by_date_filters_plan_date_range(
-        self, event_repository, mock_db_session, app_context
+        self, event_repository, mock_get_events_query_chain, app_context
     ):
+        _, _, join_mock, _, distinct_mock = mock_get_events_query_chain
         starts_at = datetime(2025, 1, 10, 0, 0, 0, tzinfo=timezone.utc)
         ends_at = datetime(2025, 1, 20, 0, 0, 0, tzinfo=timezone.utc)
 
-        query_mock_event_chain = mock_db_session.query_chain_mocks_for_actual_types[
-            ActualEvent
-        ]
-
-        options_mock = query_mock_event_chain.options.return_value
-        join_mock = options_mock.join.return_value
-        filter_mock = join_mock.filter.return_value
-        distinct_mock = filter_mock.distinct.return_value
         distinct_mock.all.return_value = []
 
         result = event_repository.get_events_by_date(starts_at, ends_at)
         assert result == []
 
         # Check that the filter included the date range conditions
-        filter_conditions_tuple = query_mock_event_chain.options.return_value.join.return_value.filter.call_args[
-            0
-        ]
+        filter_conditions_tuple = join_mock.filter.call_args[0]
         assert any(
             str(ActualEventPlan.start_date >= starts_at) == str(arg)
             for arg in filter_conditions_tuple

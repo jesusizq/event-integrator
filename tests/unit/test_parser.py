@@ -1,4 +1,3 @@
-import pytest
 from pathlib import Path
 from app.core.parser import parse_event_xml
 from datetime import datetime
@@ -10,6 +9,52 @@ def load_fixture(name: str) -> str:
         return f.read()
 
 
+def _assert_event_data(event_actual, event_expected_data, provider_name_to_check):
+    """
+    Assert that the event data structure is correct.
+    """
+    assert event_actual.id == event_expected_data["id"]
+    assert event_actual.title == event_expected_data["title"]
+    assert event_actual.sell_mode == event_expected_data["sell_mode"]
+    assert (
+        event_actual.organizer_company_id == event_expected_data["organizer_company_id"]
+    )
+    assert event_actual.provider_name == provider_name_to_check
+
+    expected_plans = event_expected_data.get("plans", [])
+    assert len(event_actual.event_plans) == len(expected_plans)
+
+    for i, plan_expected in enumerate(expected_plans):
+        plan_actual = event_actual.event_plans[i]
+        assert plan_actual.id == plan_expected["id"]
+
+        if "start_date" in plan_expected:
+            assert plan_actual.start_date == plan_expected["start_date"]
+        if "end_date" in plan_expected:
+            assert plan_actual.end_date == plan_expected["end_date"]
+        if "sell_from" in plan_expected:
+            assert plan_actual.sell_from == plan_expected["sell_from"]
+        if "sell_to" in plan_expected:
+            assert plan_actual.sell_to == plan_expected["sell_to"]
+        if "sold_out" in plan_expected:
+            assert plan_actual.sold_out == plan_expected["sold_out"]
+
+        expected_zones = plan_expected.get("zones", [])
+        assert len(plan_actual.zones) == len(expected_zones)
+        for j, zone_expected in enumerate(expected_zones):
+            zone_actual = plan_actual.zones[j]
+            assert zone_actual.id == zone_expected["id"]
+
+            if "name" in zone_expected:
+                assert zone_actual.name == zone_expected["name"]
+            if "price" in zone_expected:
+                assert zone_actual.price == zone_expected["price"]
+            if "capacity" in zone_expected:
+                assert zone_actual.capacity == zone_expected["capacity"]
+            if "numbered" in zone_expected:
+                assert zone_actual.numbered is zone_expected["numbered"]
+
+
 class TestParseEventXML:
     def test_parse_valid_xml(self):
         xml_string = load_fixture("valid_sample.xml")
@@ -19,87 +64,87 @@ class TestParseEventXML:
         assert parsed_events is not None
         assert len(parsed_events) == 3
 
-        # assertions for the first event (Camela en concierto)
-        event1 = parsed_events[0]
-        assert event1.id == "291"
-        assert event1.title == "Camela en concierto"
-        assert event1.sell_mode == "online"
-        assert event1.organizer_company_id is None
-        assert event1.provider_name == provider_name
-        assert len(event1.event_plans) == 1
+        # Expected data for the first event (Camela en concierto)
+        event1_expected = {
+            "id": "291",
+            "title": "Camela en concierto",
+            "sell_mode": "online",
+            "organizer_company_id": None,
+            "plans": [
+                {
+                    "id": "291",
+                    "start_date": datetime(2021, 6, 30, 21, 0, 0),
+                    "end_date": datetime(2021, 6, 30, 22, 0, 0),
+                    "sell_from": datetime(2020, 7, 1, 0, 0, 0),
+                    "sell_to": datetime(2021, 6, 30, 20, 0, 0),
+                    "sold_out": False,
+                    "zones": [
+                        {
+                            "id": "40",
+                            "name": "Platea",
+                            "price": 20.00,
+                            "capacity": 243,
+                            "numbered": True,
+                        },
+                        {
+                            "id": "38",
+                            "name": "Grada 2",
+                            "price": 15.00,
+                            "capacity": 100,
+                            "numbered": False,
+                        },
+                        {
+                            "id": "30",
+                            "name": "A28",
+                            "price": 30.00,
+                            "capacity": 90,
+                            "numbered": True,
+                        },
+                    ],
+                }
+            ],
+        }
+        _assert_event_data(parsed_events[0], event1_expected, provider_name)
 
-        plan1_event1 = event1.event_plans[0]
-        assert plan1_event1.id == "291"
-        assert plan1_event1.start_date == datetime(2021, 6, 30, 21, 0, 0)
-        assert plan1_event1.end_date == datetime(2021, 6, 30, 22, 0, 0)
-        assert plan1_event1.sell_from == datetime(2020, 7, 1, 0, 0, 0)
-        assert plan1_event1.sell_to == datetime(2021, 6, 30, 20, 0, 0)
-        assert not plan1_event1.sold_out
-        assert len(plan1_event1.zones) == 3
+        # Expected data for the second event (Pantomima Full)
+        event2_expected = {
+            "id": "322",
+            "title": "Pantomima Full",
+            "sell_mode": "online",
+            "organizer_company_id": "2",
+            "plans": [
+                {
+                    "id": "1642",
+                    "start_date": datetime(2021, 2, 10, 20, 0, 0),
+                    "zones": [{"id": "311", "capacity": 2}],
+                },
+                {
+                    "id": "1643",
+                    "start_date": datetime(2021, 2, 11, 20, 0, 0),
+                    "zones": [{"id": "311", "capacity": 2}],
+                },
+            ],
+        }
+        _assert_event_data(parsed_events[1], event2_expected, provider_name)
 
-        zone1_plan1_event1 = plan1_event1.zones[0]
-        assert zone1_plan1_event1.id == "40"
-        assert zone1_plan1_event1.name == "Platea"
-        assert zone1_plan1_event1.price == 20.00
-        assert zone1_plan1_event1.capacity == 243
-        assert zone1_plan1_event1.numbered is True
-
-        zone2_plan1_event1 = plan1_event1.zones[1]
-        assert zone2_plan1_event1.id == "38"
-        assert zone2_plan1_event1.name == "Grada 2"
-        assert zone2_plan1_event1.price == 15.00
-        assert zone2_plan1_event1.capacity == 100
-        assert zone2_plan1_event1.numbered is False
-
-        zone3_plan1_event1 = plan1_event1.zones[2]
-        assert zone3_plan1_event1.id == "30"
-        assert zone3_plan1_event1.name == "A28"
-        assert zone3_plan1_event1.price == 30.00
-        assert zone3_plan1_event1.capacity == 90
-        assert zone3_plan1_event1.numbered is True
-
-        # assertions for the second event (Pantomima Full)
-        event2 = parsed_events[1]
-        assert event2.id == "322"
-        assert event2.title == "Pantomima Full"
-        assert event2.sell_mode == "online"
-        assert event2.organizer_company_id == "2"
-        assert event2.provider_name == provider_name
-        assert len(event2.event_plans) == 2
-
-        plan1_event2 = event2.event_plans[0]
-        assert plan1_event2.id == "1642"
-        assert plan1_event2.start_date == datetime(2021, 2, 10, 20, 0, 0)
-        assert len(plan1_event2.zones) == 1
-        assert plan1_event2.zones[0].id == "311"
-        assert plan1_event2.zones[0].capacity == 2
-
-        plan2_event2 = event2.event_plans[1]
-        assert plan2_event2.id == "1643"
-        assert plan2_event2.start_date == datetime(2021, 2, 11, 20, 0, 0)
-        assert len(plan2_event2.zones) == 1
-        assert plan2_event2.zones[0].id == "311"
-        assert plan2_event2.zones[0].capacity == 2
-
-        # assertions for the third event (Los Morancos)
-        event3 = parsed_events[2]
-        assert event3.id == "1591"
-        assert event3.title == "Los Morancos"
-        assert event3.sell_mode == "online"
-        assert event3.organizer_company_id == "1"
-        assert event3.provider_name == provider_name
-        assert len(event3.event_plans) == 1
-
-        plan1_event3 = event3.event_plans[0]
-        assert plan1_event3.id == "1642"
-        assert plan1_event3.start_date == datetime(2021, 7, 31, 20, 0, 0)
-        assert len(plan1_event3.zones) == 2
-        assert plan1_event3.zones[0].id == "186"
-        assert plan1_event3.zones[0].capacity == 2
-        assert plan1_event3.zones[0].numbered is True
-        assert plan1_event3.zones[1].id == "186"
-        assert plan1_event3.zones[1].capacity == 16
-        assert plan1_event3.zones[1].numbered is False
+        # Expected data for the third event (Los Morancos)
+        event3_expected = {
+            "id": "1591",
+            "title": "Los Morancos",
+            "sell_mode": "online",
+            "organizer_company_id": "1",
+            "plans": [
+                {
+                    "id": "1642",
+                    "start_date": datetime(2021, 7, 31, 20, 0, 0),
+                    "zones": [
+                        {"id": "186", "capacity": 2, "numbered": True},
+                        {"id": "186", "capacity": 16, "numbered": False},
+                    ],
+                }
+            ],
+        }
+        _assert_event_data(parsed_events[2], event3_expected, provider_name)
 
     def test_parse_empty_xml_string(self):
         parsed_events = parse_event_xml("", "test_provider")
@@ -137,41 +182,50 @@ class TestParseEventXML:
         assert len(parsed_events) == 3
 
         # Event 1 (base_plan_id="100") - missing optional fields
-        event1 = next((e for e in parsed_events if e.id == "100"), None)
-        assert event1 is not None
-        assert event1.title == "Event With Missing Optional Fields"
-        assert event1.sell_mode is None
-        assert event1.organizer_company_id is None
-        assert event1.provider_name == provider_name
-        assert len(event1.event_plans) == 1
-        assert event1.event_plans[0].id == "101"
-        assert len(event1.event_plans[0].zones) == 1
-        assert event1.event_plans[0].zones[0].id == "Z1"
+        event1_actual = next((e for e in parsed_events if e.id == "100"), None)
+        assert event1_actual is not None
+        event1_expected = {
+            "id": "100",
+            "title": "Event With Missing Optional Fields",
+            "sell_mode": None,
+            "organizer_company_id": None,
+            "plans": [
+                {
+                    "id": "101",
+                    "zones": [{"id": "Z1"}],
+                }
+            ],
+        }
+        _assert_event_data(event1_actual, event1_expected, provider_name)
 
         # Event 2 (base_plan_id="200") - contains some invalid zones within a plan
-        event2 = next((e for e in parsed_events if e.id == "200"), None)
-        assert event2 is not None
-        assert event2.title == "Event With Invalid Zone"
-        assert event2.sell_mode == "online"
-        assert event2.provider_name == provider_name
-        assert len(event2.event_plans) == 1
-
-        plan_event2 = event2.event_plans[0]
-        assert plan_event2.id == "201"
-        # Should only contain the one valid zone ("Z2A")
-        # "Z2B" (invalid capacity) and "Z2C" (invalid price) should be skipped
-        assert len(plan_event2.zones) == 1
-        assert plan_event2.zones[0].id == "Z2A"
-        assert plan_event2.zones[0].name == "Good Zone"
-        assert plan_event2.zones[0].capacity == 100
+        event2_actual = next((e for e in parsed_events if e.id == "200"), None)
+        assert event2_actual is not None
+        event2_expected = {
+            "id": "200",
+            "title": "Event With Invalid Zone",
+            "sell_mode": "online",
+            "organizer_company_id": None,
+            "plans": [
+                {
+                    "id": "201",
+                    "zones": [{"id": "Z2A", "name": "Good Zone", "capacity": 100}],
+                }
+            ],
+        }
+        _assert_event_data(event2_actual, event2_expected, provider_name)
 
         # Event 3 (base_plan_id="300") - valid base_plan, but its plan is invalid and skipped
-        event3 = next((e for e in parsed_events if e.id == "300"), None)
-        assert event3 is not None
-        assert event3.title == "Event With Invalid Plan"
-        assert event3.sell_mode == "online"
-        assert event3.provider_name == provider_name
-        assert len(event3.event_plans) == 0  # Its plan was invalid and skipped
+        event3_actual = next((e for e in parsed_events if e.id == "300"), None)
+        assert event3_actual is not None
+        event3_expected = {
+            "id": "300",
+            "title": "Event With Invalid Plan",
+            "sell_mode": "online",
+            "organizer_company_id": None,
+            "plans": [],
+        }
+        _assert_event_data(event3_actual, event3_expected, provider_name)
 
         # Check logs for skipped elements
         assert (
