@@ -100,3 +100,16 @@ EXPOSE 80
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
+
+# ------------------------------------------------------------------------------
+# Redis configured stage
+# ------------------------------------------------------------------------------
+FROM redis:7-alpine AS redis-configured
+
+# Copy custom Redis configuration
+COPY ./redis/redis.conf /usr/local/etc/redis/redis.conf
+
+EXPOSE 6379
+
+# Start Redis
+CMD ["redis-server", "/usr/local/etc/redis/redis.conf"]

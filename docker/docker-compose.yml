@@ -103,7 +103,10 @@ services:
     command: /home/appuser/migrations_entrypoint.sh
 
   redis:
-    image: redis:7-alpine
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: redis-configured
     container_name: event_integrator_redis
     ports:
       - "6379:6379"
