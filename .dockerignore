@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Poetry / Virtual environment
+.venv/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE / Editor folders
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+tests/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Logs
+*.log
+logs/
+
+# Other build artifacts / secrets
+build/
+dist/
+*.egg-info/
+*.env
+.env*
+!env.example # Keep example env files if they exist
+
+# Others
+docs/ 

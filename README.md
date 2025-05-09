@@ -1,77 +1,192 @@
-# Fever code challenge
+# Fever Event Integrator
 
-Welcome! We're thrilled to have you at this stage of the process. This challenge is designed to give us insight into your coding approach and problem-solving skills. It’s a simplified example of real-world scenarios we handle daily at Fever.
+## Overview
 
-## About Fever
+This project implements a microservice that integrates events from external XML API providers into the Fever marketplace, as detailed in [TASK.md](docs/TASK.md). It's a backend API built with Python and Flask, designed for scalability and maintainability.
 
-At Fever we work to bring experiences to people. We have a marketplace of events from different providers that are curated and then consumed by multiple applications. We work hard to expand the range of experiences we offer to our customers. Consequently, we are continuously looking for new providers with great events to integrate in our platforms. 
+For a detailed discussion of architectural choices, design decisions, and scalability considerations, please see [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
 
-## The challenge
+## API Usage
 
-Your task is to develop a microservice that integrates events from an external provider into the Fever marketplace.
+The main event search API endpoint is available at: `http://localhost:8080/v1/events/search` (when using Docker/Nginx) or `http://localhost:5000/v1/events/search` (when running Flask directly).
+This endpoint retrieves events based on their plan start date. It accepts two optional query parameters:
 
-Even if this is just a disposable test, imagine that somebody will pick up this code and maintain it in the future. It will evolve new features will be added, existing ones adapted, and unnecessary functionalities removed. Writing clean, scalable, and maintainable code is crucial for ensuring the sustainability of any project.
+- `starts_at`: An ISO 8601 formatted datetime string (e.g., `YYYY-MM-DDTHH:MM:SSZ`) specifying the beginning of the date range for event plans.
+- `ends_at`: An ISO 8601 formatted datetime string (e.g., `YYYY-MM-DDTHH:MM:SSZ`) specifying the end of the date range for event plans.
 
-> [!TIP]
-> This should be conceived as a long-term project, not just one-off code.
+Example usage:
 
-The external provider exposes an endpoint: https://provider.code-challenge.feverup.com/api/events
+```bash
+curl -X GET \
+  -H "Accept: application/json" \
+  "http://localhost:8080/v1/events/search?starts_at=2024-07-01T00:00:00Z&ends_at=2024-07-31T23:59:59Z"
+```
 
-This API returns a list of available events in XML format. Events that are no longer available will not be included in future responses. Here are three example responses over consecutive API calls:
+A health check endpoint is available at `/v1/health`:
 
-- [Response 1](https://gist.githubusercontent.com/acalvotech/55223c0e5c55baa33086e2383badba64/raw/1cab82e2d1f3adc8d3b3dace0a409844bed698f0/response_1.xml)
-- [Response 2](https://gist.githubusercontent.com/acalvotech/d9c6fc5a5920bf741638d6179c8c07ed/raw/2b4ca961f05b2eebc0682f21357d37ac0eb5c80a/response_2.xml)
-- [Response 3](https://gist.githubusercontent.com/acalvotech/7c107daacfd05f32c1c1bcd7209d85ef/raw/ea4c4c8d2b7ccf2ae2be153d45353fb7187f5236/response_3.xml)
+```bash
+curl -X GET http://localhost:8080/v1/health
 
-> [!WARNING]
-> The API endpoint has been designed with real-world conditions in mind, where network requests don’t always behave ideally. Your solution should demonstrate how you handle various scenarios that could occur in production environments. **Don’t assume the API endpoint will always respond successfully and with low latency.**
+# Expected response:
+{"status": "ok"}
+```
 
-## Your Task
+## Architectural Summary
 
-You need to **develop and expose a single endpoint**:
+The system is a microservice with a layered architecture:
 
-- **API Spec:** [SwaggerHub Reference](https://app.swaggerhub.com/apis-docs/luis-pintado-feverup/backend-test/1.0.0)
-- The endpoint should accept `starts_at` and `ends_at` parameters and return only the events within this time range.
-- Events should be included if they were ever available (with `"sell_mode": "online"`).
-- Past events should be retrievable even if they are no longer present in the provider’s latest response.
-- The endpoint must be performant, responding in **hundreds of milliseconds**, regardless of the state of other external services. For instance, if the external provider service is down, our search endpoint should still work as usual. Similarly, it should also respond quickly to all requests regardless of the traffic we receive.
+- **API Layer**: Flask & APIFairy for handling HTTP requests and validation.
+- **Service Layer**: Core business logic.
+- **Provider Client**: Interacts with external XML APIs.
+- **XML Parser**: Parses XML data to Pydantic models.
+- **Data Access Layer**: SQLAlchemy ORM for PostgreSQL database interactions.
+- **Background Worker**: Celery & Redis for asynchronous data synchronization.
+- **Nginx**: Acts as a reverse proxy in the Docker setup, handling incoming traffic. It can also be configured for SSL termination, basic load balancing (if scaled), and serving static files if needed.
 
-## Evaluation criteria
+This modular design supports independent development, testing, and scaling. For more details, refer to the [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
 
-Your solution will be evaluated holistically, with special attention to:
+## Makefile
 
-- **Problem-Solution Fit:** How well your solution aligns with the given problem.
-- **Adherence to API Spec:** Follow the provided OpenAPI specification.
-- **Documentation:** Provide a README explaining design choices and implementation details, additional design schemas will be valued.
-- **Makefile:** Include a Makefile with a run target to simplify running the application.
-- **Code Quality:** Readability, maintainability, and adherence to best practices.
-- **Software Architecture:** Structural design choices and scalability considerations.
-- **Efficiency:** Optimize for both resources and time efficiency.
+A `Makefile` is provided in the project root to simplify common development and operational tasks. It serves as a convenient entry point for commands related to dependency management, running the application, executing tests, and managing Docker containers.
 
-## Guidelines
+Key `make` targets include:
 
-- Use your preferred programming language.
-- Feel free to use any libraries, frameworks, or tools that best fit the task.
-- Submit your code in the `master` branch of this repository.
+- `make install`: Installs project dependencies using Poetry.
+- `make run`: Runs the Flask development server.
+- `make test`: Executes the test suite using `pytest`.
+- `make lint`: Runs linters to check code style.
+- `make build`: Builds the Docker image for the application.
+- `make up`: Starts all services (application, database, Redis) using Docker Compose (delegates to `docker/run.sh up`).
+- `make down`: Stops all services managed by Docker Compose (delegates to `docker/run.sh down`).
 
-## Going the extra mile 🚀
+Please refer to the `Makefile` itself for the full list of targets and their specific implementations.
 
-To make your solution even stronger, consider:
+## Environment variables
 
-- **Scalability:** How would you handle a scenario where the provider sends thousands of events with hundreds of zones per event?
-- **High Traffic:** How would your service respond to 5k-10k requests per second?
-- **Optimization Strategies:** How can the system remain performant under heavy load?
+The application requires the following environment variables, typically managed via a `.env` file in the project root. Take a look at the [.env.example](.env.example) file for reference.
 
-You can implement these enhancements in your code or describe your approach in the README.
+**Important Notes**
 
-## Need Help?
+- **Localhost Configuration**: When working against localhost, ensure to update the service names in the `.env` file to `localhost`. For example, change `postgresql://user:password@db:5432/event_integrator` to `postgresql://user:password@localhost:5432/event_integrator`.
+- **Version Control**: **Do not commit** the `.env` file to version control.
 
-If you have any questions, feel free to reach out. We’ll get back to you as soon as possible.
+## Database Migrations
 
-## Feedback
+This project uses Flask-Migrate (which relies on Alembic) to manage database schema changes. For details on why migrations are used, see the [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
 
-We value your time and effort! Please take a moment to share your thoughts on our process:
+### Initial Setup (One-Time Only)
 
-[📋 Feedback Form](https://forms.gle/6NdDApby6p3hHsWp8)
+Before you can create or apply migrations for the first time, you need to initialize the migration environment. This creates a `migrations` directory in your project root that will store all migration scripts and configurations.
 
-Thank you for participating, and good luck! 🎉
+1.  **Ensure the `migrations` directory exists with correct permissions:**
+    This step is crucial to avoid permission errors when Docker tries to write to this directory from within the container. From your project root:
+
+    ```bash
+    mkdir -p migrations
+    sudo chown -R $(id -u):$(id -g) migrations
+    ```
+
+2.  **Initialize the Flask-Migrate environment:**
+    From the project root again, run this command to initialize the migration environment with:
+
+    ```bash
+    make init-migrations
+    ```
+
+    This command will populate the `./migrations` directory on your host with essential migration files.
+
+    You should commit the initially generated `migrations` directory and all its contents. For this project, **commit all generated migration scripts in `migrations/versions/`**.
+
+Once these steps are completed and committed, you can use the Makefile targets like `make create-migration` and `make migrate` to manage your database schema changes.
+
+### Creating New Migrations
+
+Whenever you make changes to your SQLAlchemy models (defined in `app/models/*.py`), you must generate a new migration script to reflect these changes.
+
+**Generate the migration script:**
+
+Use the provided Makefile command:
+
+```bash
+    make create-migration message="<message>"
+```
+
+Replace `<message>` with a short, clear summary of the schema changes you made, and you will see the migration script generated in `migrations/versions/`.
+
+### Applying Migrations
+
+Applying migrations to execute the generated scripts to update your database schema to the desired state.
+
+1.  **Automatically on `docker compose up` (via `make up`):**
+    The `migrations` service defined in `docker/docker-compose.yml` is configured to automatically run `flask db upgrade` every time your services are started.
+
+2.  **Manually using Makefile:**
+    If you need to apply migrations manually (e.g., after pulling new changes from Git that include new migration scripts, without restarting all services), you can use:
+
+    ```bash
+    make migrate
+    ```
+
+3.  **Manually for Local Development (without Docker, using Poetry environment):**
+    If you are developing locally without relying on Docker and have your database and environment variables configured directly on your host machine: - First, ensure your Poetry virtual environment is active:
+    ```bash
+    poetry shell
+    ```
+    - Then apply migrations:
+    ```bash
+    flask db upgrade
+    ```
+
+## Dependencies
+
+Install dependencies (`poetry` >=1.5.0 needs to be [installed](https://python-poetry.org/docs/#installing-with-the-official-installer) on the system)
+
+Depending on your IDE, you may need to configure the python interpreter to use the poetry environment (i.e. [PyCharm](https://www.jetbrains.com/help/pycharm/poetry.html))
+
+Use the Makefile to install dependencies:
+
+```sh
+make install
+```
+
+Activate `poetry environment` (if not using `make run` or other `make` targets that handle it):
+
+```sh
+poetry shell
+```
+
+## Running the app
+
+Ensure environment variables are set or available in a `.env` file.
+
+Using Makefile with Docker Compose is recommended. This method uses the [docker/docker-compose.yml](docker/docker-compose.yml) file which runs the Flask app along with an Nginx proxy, PostgreSQL database, and Redis.
+
+Ensure your `.env` file is in the project root, as `docker-compose.yml` depends on it.
+
+Build and start the containers in detached mode with:
+
+```sh
+source .env && make build && make up
+```
+
+The app will be available via Nginx at `http://localhost:8080`
+
+- Event search endpoint: `http://localhost:8080/v1/events/search`
+- Health check: [http://localhost:8080/v1/health/](http://localhost:8080/v1/health/)
+
+- View logs: `cd docker && docker compose logs -f` (or `make logs`)
+- Stop containers: `make down`
+
+## Running Tests
+
+Ensure development dependencies are installed (this is handled by `make install` if you haven't run it yet, or it's included if you've run `make up`).
+
+Configure a `TEST_DATABASE_URL` in your environment or `.env` file, so tests automatically run against that database.
+
+To run tests:
+
+```sh
+source .env.test && make test
+```
+
+**IMPORTANT**: ensure you have sourced your test environment variables first with `source .env.test`. That command relies on `docker/run.sh`, which depends on `--env-file=.env.test` for the test environment to work. That file is hardcoded in the run.sh script.

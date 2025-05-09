@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<planList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.0" xsi:noNamespaceSchemaLocation="planList.xsd">
+   <output>
+      <base_plan base_plan_id="999" title="Malformed Event">
+         <plan plan_id="9991" plan_start_date="2023-12-31T23:00:00">
+            <zone zone_id="Z9" price="10.0" />
+         </event_plan>
+      </base_plan>
+   </output>
+</planList> 

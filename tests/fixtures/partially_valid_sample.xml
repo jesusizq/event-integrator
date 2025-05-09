@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<planList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.0" xsi:noNamespaceSchemaLocation="planList.xsd">
+   <output>
+      <!-- Event with missing optional sell_mode and organizer_company_id -->
+      <base_plan base_plan_id="100" title="Event With Missing Optional Fields">
+         <plan plan_start_date="2023-01-01T10:00:00" plan_end_date="2023-01-01T12:00:00" plan_id="101" sell_from="2022-12-01T00:00:00" sell_to="2023-01-01T09:00:00" sold_out="false">
+            <zone zone_id="Z1" capacity="50" price="25.00" name="Normal Zone" numbered="true" />
+         </plan>
+      </base_plan>
+      <!-- Event with a plan that has a zone with invalid data (capacity is not a number) -->
+      <base_plan base_plan_id="200" sell_mode="online" title="Event With Invalid Zone">
+         <plan plan_start_date="2023-02-01T20:00:00" plan_end_date="2023-02-01T22:00:00" plan_id="201" sell_from="2023-01-15T00:00:00" sell_to="2023-02-01T19:00:00" sold_out="false">
+            <zone zone_id="Z2A" capacity="100" price="30.00" name="Good Zone" numbered="false" />
+            <zone zone_id="Z2B" capacity="invalid_capacity" price="40.00" name="Bad Zone" numbered="true" /> 
+            <zone zone_id="Z2C" capacity="20" price="not_a_price" name="Another Bad Zone" numbered="true" /> 
+         </plan>
+      </base_plan>
+      <!-- Event with a plan missing required fields (e.g. plan_id) -->
+       <base_plan base_plan_id="300" sell_mode="online" title="Event With Invalid Plan">
+         <plan plan_start_date="2023-03-01T20:00:00" plan_end_date="2023-03-01T22:00:00" sell_from="2023-02-15T00:00:00" sell_to="2023-03-01T19:00:00" sold_out="false">
+            <zone zone_id="Z3A" capacity="10" price="10.00" name="Valid Zone in Invalid Plan" numbered="true" />
+         </plan>
+      </base_plan>
+      <!-- Base plan missing required title -->
+      <base_plan base_plan_id="400" sell_mode="offline">
+          <plan plan_id="401" plan_start_date="2023-04-01T10:00:00" plan_end_date="2023-04-01T12:00:00" sell_from="2023-03-01T00:00:00" sell_to="2023-04-01T09:00:00" sold_out="false">
+            <zone zone_id="Z4" capacity="5" price="50.00" name="Zone in event with missing title" numbered="true" />
+         </plan>
+      </base_plan>
+   </output>
+</planList> 
