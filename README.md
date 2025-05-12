@@ -6,6 +6,49 @@ This project implements a microservice that integrates events from external XML 
 
 For a detailed discussion of architectural choices, design decisions, and scalability considerations, please see [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
 
+## Dependencies
+
+### System Prerequisites
+
+Before you begin, ensure you have the following system-level tools installed:
+
+- **Docker Engine:** Required for building and running the application containers. Follow the official installation guide for your operating system: [Install Docker Engine](https://docs.docker.com/engine/install/)
+- **Docker Compose:** Used to manage the multi-container application environment (app, db, redis, nginx, etc.). It's typically included with Docker Desktop but might require a separate installation otherwise. See: [Install Docker Compose](https://docs.docker.com/compose/install/)
+- **GNU Make:** Used to execute commands defined in the `Makefile` for common development tasks. Most Linux/macOS systems have it pre-installed. Check with `make --version`.
+- **A POSIX-compliant shell (sh):** Required for running scripts (like `docker/run.sh`) and `Makefile` commands.
+
+### Python Project Dependencies (Poetry)
+
+Install project dependencies using `poetry` (version >=1.5.0 recommended). If you don't have Poetry, it needs to be [installed](https://python-poetry.org/docs/#installing-with-the-official-installer) first.
+
+Depending on your IDE, you may need to configure the python interpreter to use the poetry environment (i.e. [PyCharm](https://www.jetbrains.com/help/pycharm/poetry.html))
+
+Use the Makefile to install dependencies:
+
+```sh
+make install
+```
+
+Activate `poetry environment` (if not using `make run` or other `make` targets that handle it):
+
+```sh
+poetry shell
+```
+
+## Architectural Summary
+
+The system is a microservice with a layered architecture:
+
+- **API Layer**: Flask & APIFairy for handling HTTP requests and validation.
+- **Service Layer**: Core business logic.
+- **Provider Client**: Interacts with external XML APIs.
+- **XML Parser**: Parses XML data to Pydantic models.
+- **Data Access Layer**: SQLAlchemy ORM for PostgreSQL database interactions.
+- **Background Worker**: Celery & Redis for asynchronous data synchronization.
+- **Nginx**: Acts as a reverse proxy in the Docker setup, handling incoming traffic. It can also be configured for SSL termination, basic load balancing (if scaled), and serving static files if needed.
+
+This modular design supports independent development, testing, and scaling. For more details, refer to the [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
+
 ## API Usage
 
 The main event search API endpoint is available at: `http://localhost:8080/v1/events/search` (when using Docker/Nginx) or `http://localhost:5000/v1/events/search` (when running Flask directly).
@@ -30,20 +73,6 @@ curl -X GET http://localhost:8080/v1/health
 # Expected response:
 {"status": "ok"}
 ```
-
-## Architectural Summary
-
-The system is a microservice with a layered architecture:
-
-- **API Layer**: Flask & APIFairy for handling HTTP requests and validation.
-- **Service Layer**: Core business logic.
-- **Provider Client**: Interacts with external XML APIs.
-- **XML Parser**: Parses XML data to Pydantic models.
-- **Data Access Layer**: SQLAlchemy ORM for PostgreSQL database interactions.
-- **Background Worker**: Celery & Redis for asynchronous data synchronization.
-- **Nginx**: Acts as a reverse proxy in the Docker setup, handling incoming traffic. It can also be configured for SSL termination, basic load balancing (if scaled), and serving static files if needed.
-
-This modular design supports independent development, testing, and scaling. For more details, refer to the [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
 
 ## Makefile
 
@@ -137,24 +166,6 @@ Applying migrations to execute the generated scripts to update your database sch
     flask db upgrade
     ```
 
-## Dependencies
-
-Install dependencies (`poetry` >=1.5.0 needs to be [installed](https://python-poetry.org/docs/#installing-with-the-official-installer) on the system)
-
-Depending on your IDE, you may need to configure the python interpreter to use the poetry environment (i.e. [PyCharm](https://www.jetbrains.com/help/pycharm/poetry.html))
-
-Use the Makefile to install dependencies:
-
-```sh
-make install
-```
-
-Activate `poetry environment` (if not using `make run` or other `make` targets that handle it):
-
-```sh
-poetry shell
-```
-
 ## Running the app
 
 Ensure environment variables are set or available in a `.env` file.
@@ -186,7 +197,7 @@ Configure a `TEST_DATABASE_URL` in your environment or `.env` file, so tests aut
 To run tests:
 
 ```sh
-source .env.test && make test
+source .env.test && make build && make test
 ```
 
 **IMPORTANT**: ensure you have sourced your test environment variables first with `source .env.test`. That command relies on `docker/run.sh`, which depends on `--env-file=.env.test` for the test environment to work. That file is hardcoded in the run.sh script.
