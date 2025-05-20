@@ -197,7 +197,7 @@ Configure a `TEST_DATABASE_URL` in your environment or `.env` file, so tests aut
 To run tests:
 
 ```sh
-source .env.test && make build && make test
+source .env.test && make build test_env=true && make test
 ```
 
 **IMPORTANT**: ensure you have sourced your test environment variables first with `source .env.test`. That command relies on `docker/run.sh`, which depends on `--env-file=.env.test` for the test environment to work. That file is hardcoded in the run.sh script.

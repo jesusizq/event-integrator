@@ -32,7 +32,7 @@ help:
 	@echo "  test               : Run pytest tests against app container (requires test env setup)."
 	@echo "  run-local          : Run Flask development server locally (requires local env setup)."
 	@echo "  run-worker-local   : Run Celery worker locally (requires local env setup)."
-	@echo "  build              : Build docker images using run.sh."
+	@echo "  build [test_env=true] : Build docker images using run.sh."
 	@echo "  up [test_env=true] : Start docker services in detached mode (default dev env). Use test_env=true for test env."
 	@echo "  up-debug [test_env=true] : Start docker services in detached mode (default dev env) without app container (for debugging)."
 	@echo "  down               : Stop docker services using run.sh."
@@ -61,7 +61,7 @@ test:
 	@echo "INFO: Starting 'test' environment using $(RUN_SH)... This might take a moment."
 	sh $(RUN_SH) -e test -d up
 	@echo "INFO: 'test' environment started. Executing tests..."
-	poetry run pytest || (echo "ERROR: Tests failed. Check logs for details.")
+	poetry run pytest
 	@echo "---------------------------------------------------------------------"
 	@echo "INFO: Pytest execution finished."
 	@echo "INFO: Docker services started for testing are still running in 'test' environment."
@@ -77,7 +77,11 @@ run-worker-local:
 	poetry run celery -A run.celery worker --loglevel=info
 
 build:
+ifeq ($(test_env),true)
+	sh $(RUN_SH) -e test build
+else
 	sh $(RUN_SH) build
+endif
 	@echo "Build completed via run.sh"
 
 up:
