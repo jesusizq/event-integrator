@@ -15,6 +15,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/v1/health/"]
       interval: 30s
@@ -49,6 +51,8 @@ services:
       migrations:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      mock-provider:
         condition: service_healthy
     environment:
       FLASK_ENV: ${FLASK_ENV:-development}
@@ -135,6 +139,29 @@ services:
       db:
         condition: service_healthy
     restart: always
+
+  mock-provider:
+    image: python:3.11-slim
+    container_name: event_integrator_mock
+    volumes:
+      - ../scripts/mock_provider.py:/app/mock_provider.py
+      - ../tests/fixtures/valid_sample.xml:/app/tests/fixtures/valid_sample.xml
+    working_dir: /app
+    command: python mock_provider.py
+    ports:
+      - "8081:8081"
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8081/api/events')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   nginx_cache:

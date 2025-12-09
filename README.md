@@ -103,6 +103,44 @@ Execute the comprehensive test suite (Unit + Integration) in an isolated contain
 make test
 ```
 
+### 4. Mocking External Providers
+
+To test the ingestion pipeline without relying on a real external API, the project includes a containerized mock server.
+
+1. **Enable the Mock**:
+   Ensure your `.env` file points to the internal mock service (default in `.env.example`):
+
+   ```bash
+   PROVIDER_API_URL=http://mock-provider:8081/api/events
+   ```
+
+2. **Start the System**:
+
+   ```bash
+   make up
+   ```
+
+   The mock provider starts automatically alongside other services.
+
+3. **Watch the logs**:
+
+   ```bash
+   make logs service=celery
+   ```
+
+   You will see the worker fetching and parsing data from the mock service.
+
+   **Expected Output:**
+
+   ```log
+   [INFO/Beat] Scheduler: Sending due task sync-provider-events-schedule
+   [INFO/MainProcess] Task app.tasks.sync.sync_provider_events received
+   [INFO/ForkPoolWorker] Fetching events XML from provider: primary_provider.
+   [INFO/ForkPoolWorker] Successfully processed 3 events from primary_provider. Upserting into database...
+   [INFO/ForkPoolWorker] Successfully committed batch of 3 events.
+   [INFO/ForkPoolWorker] Synchronization for provider primary_provider completed successfully.
+   ```
+
 ---
 
 ## 🔌 API Usage
