@@ -13,7 +13,7 @@ class Config:
     # In the future, providers will need to be added via the API.
     PROVIDERS = [
         {
-            "name": "fever_first_provider",
+            "name": "primary_provider",
             "url": os.environ.get("PROVIDER_API_URL"),
             "timeout": int(os.environ.get("PROVIDER_API_TIMEOUT") or 10),
         }

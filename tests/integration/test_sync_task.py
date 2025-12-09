@@ -14,7 +14,7 @@ from datetime import datetime, timezone, timedelta
 from app.services.provider_client import ProviderClient
 
 # Default provider name, matches the one in config.py
-DEFAULT_PROVIDER_NAME = "fever_first_provider"
+DEFAULT_PROVIDER_NAME = "primary_provider"
 
 
 @pytest.fixture(scope="session")

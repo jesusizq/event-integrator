@@ -226,7 +226,7 @@ class TestEventSchema:
 
         event_data = {
             "id": str(event_id),
-            "title": "Fever Candlelight",
+            "title": "Candlelight Concert",
             "starts_at": current_time.isoformat(),
             "ends_at": (current_time + timedelta(hours=2)).isoformat(),
             "zones": [zone1_raw_data, zone2_raw_data],
