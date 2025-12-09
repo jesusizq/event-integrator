@@ -1,4 +1,4 @@
-# Makefile for fever-challenge-integration
+# Makefile for event-integrator
 
 # Default shell
 SHELL := /bin/bash
