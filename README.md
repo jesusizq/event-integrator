@@ -1,203 +1,174 @@
-# Fever Event Integrator
+# Scalable Event Aggregator Microservice
 
-## Overview
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
+[![Flask](https://img.shields.io/badge/Flask-2.0+-green.svg?style=flat&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![Tests](https://img.shields.io/badge/Tests-Passing-success)](tests/)
+[![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Celery](https://img.shields.io/badge/Celery-Async-brightgreen.svg?style=flat&logo=celery&logoColor=white)](https://docs.celeryq.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Relational-blue.svg?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-This project implements a microservice that integrates events from external XML API providers into the Fever marketplace, as detailed in [TASK.md](docs/TASK.md). It's a backend API built with Python and Flask, designed for scalability and maintainability.
+## 🚀 Overview
 
-For a detailed discussion of architectural choices, design decisions, and scalability considerations, please see [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
+This project is a production-ready microservice designed to **aggregate, normalize, and serve event data** from disparate external XML API providers.
 
-## Dependencies
+It acts as a robust **Anti-Corruption Layer** that insulates internal systems from the inconsistencies and failures of external third-party APIs. The system asynchronously ingests complex nested XML feeds, transforms them into a normalized relational schema, and exposes a high-performance REST API.
 
-### System Prerequisites
+**Key Capabilities:**
 
-Before you begin, ensure you have the following system-level tools installed:
+- **Resilience**: Decouples internal reads from external provider failures. If a provider goes down, the API continues to serve cached/stored data.
+- **High Performance**: Optimized for read-heavy workloads using multi-layer caching (Redis) and efficient database indexing.
+- **Data Integrity**: Parses and validates "dirty" XML data into strict Pydantic models before storage.
+- **Scalability**: Uses background workers (Celery) to handle data ingestion without blocking the main API thread.
 
-- **Docker Engine:** Required for building and running the application containers. Follow the official installation guide for your operating system: [Install Docker Engine](https://docs.docker.com/engine/install/)
-- **Docker Compose:** Used to manage the multi-container application environment (app, db, redis, nginx, etc.). It's typically included with Docker Desktop but might require a separate installation otherwise. See: [Install Docker Compose](https://docs.docker.com/compose/install/)
-- **GNU Make:** Used to execute commands defined in the `Makefile` for common development tasks. Most Linux/macOS systems have it pre-installed. Check with `make --version`.
-- **A POSIX-compliant shell (sh):** Required for running scripts (like `docker/run.sh`) and `Makefile` commands.
+---
 
-### Python Project Dependencies (Poetry)
+## 🏗️ Architecture
 
-Install project dependencies using `poetry` (version >=1.5.0 recommended). If you don't have Poetry, it needs to be [installed](https://python-poetry.org/docs/#installing-with-the-official-installer) first.
+The system follows a **Clean Architecture** approach, separating business logic, data access, and external integrations.
 
-Depending on your IDE, you may need to configure the python interpreter to use the poetry environment (i.e. [PyCharm](https://www.jetbrains.com/help/pycharm/poetry.html))
+```mermaid
+graph TD
+    subgraph "External Systems"
+        ExternalAPIs["External Provider APIs (XML)"]
+    end
 
-Use the Makefile to install dependencies:
+    subgraph "Dockerized Environment"
+        Nginx("Nginx (Reverse Proxy)")
 
-```sh
-make install
+        subgraph "Application Layer"
+            API["Flask API"]
+            Worker["Celery Worker"]
+            Scheduler["Celery Beat"]
+        end
+
+        subgraph "Data Layer"
+            Redis["Redis (Cache & Broker)"]
+            DB["PostgreSQL"]
+        end
+    end
+
+    %% Flows
+    ExternalAPIs -->|XML Data| Worker
+    Scheduler -->|Trigger Sync| Worker
+    Worker -->|Write Processed Data| DB
+
+    User(("User")) -->|HTTP Request| Nginx
+    Nginx --> API
+    API -->|Cache Hit| Redis
+    API -->|Cache Miss| DB
 ```
 
-Activate `poetry environment` (if not using `make run` or other `make` targets that handle it):
+For a detailed deep-dive into the architectural decisions, design patterns (Repository, Adapter), and scalability strategies, please see the **[Design & Scalability Report](docs/DESIGN_AND_SCALABILITY.md)**.
 
-```sh
-poetry shell
-```
+---
 
-## Architectural Summary
+## 🛠️ Tech Stack
 
-The system is a microservice with a layered architecture:
+- **Core**: Python 3.11+, Flask, APIFairy (OpenAPI/Swagger).
+- **Data**: SQLAlchemy (ORM), Pydantic (Validation), PostgreSQL 15.
+- **Async & Caching**: Celery, Redis.
+- **Infrastructure**: Docker, Docker Compose, Nginx.
+- **Testing**: Pytest, Factory Boy, lxml (for parsing).
 
-- **API Layer**: Flask & APIFairy for handling HTTP requests and validation.
-- **Service Layer**: Core business logic.
-- **Provider Client**: Interacts with external XML APIs.
-- **XML Parser**: Parses XML data to Pydantic models.
-- **Data Access Layer**: SQLAlchemy ORM for PostgreSQL database interactions.
-- **Background Worker**: Celery & Redis for asynchronous data synchronization.
-- **Nginx**: Acts as a reverse proxy in the Docker setup, handling incoming traffic. It can also be configured for SSL termination, basic load balancing (if scaled), and serving static files if needed.
+---
 
-This modular design supports independent development, testing, and scaling. For more details, refer to the [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
+## ⚡ Quick Start
 
-## API Usage
+Prerequisites: `Docker` and `Make`.
 
-The main event search API endpoint is available at: `http://localhost:8080/v1/events/search` (when using Docker/Nginx) or `http://localhost:5000/v1/events/search` (when running Flask directly).
-This endpoint retrieves events based on their plan start date. It accepts two optional query parameters:
+### 1. Run the System
 
-- `starts_at`: An ISO 8601 formatted datetime string (e.g., `YYYY-MM-DDTHH:MM:SSZ`) specifying the beginning of the date range for event plans.
-- `ends_at`: An ISO 8601 formatted datetime string (e.g., `YYYY-MM-DDTHH:MM:SSZ`) specifying the end of the date range for event plans.
-
-Example usage:
+The entire environment (API, DB, Redis, Worker, Nginx) is containerized.
 
 ```bash
-curl -X GET \
-  -H "Accept: application/json" \
-  "http://localhost:8080/v1/events/search?starts_at=2024-07-01T00:00:00Z&ends_at=2024-07-31T23:59:59Z"
+# Build and start services
+make build
+make up
 ```
 
-A health check endpoint is available at `/v1/health`:
+The API will be available at **`http://localhost:8080`**.
+
+### 2. Verify Health
 
 ```bash
-curl -X GET http://localhost:8080/v1/health
-
-# Expected response:
-{"status": "ok"}
+curl http://localhost:8080/v1/health
+# {"status": "ok"}
 ```
 
-## Makefile
+### 3. Run Tests
 
-A `Makefile` is provided in the project root to simplify common development and operational tasks. It serves as a convenient entry point for commands related to dependency management, running the application, executing tests, and managing Docker containers.
-
-Key `make` targets include:
-
-- `make install`: Installs project dependencies using Poetry.
-- `make run`: Runs the Flask development server.
-- `make test`: Executes the test suite using `pytest`.
-- `make lint`: Runs linters to check code style.
-- `make build`: Builds the Docker image for the application.
-- `make up`: Starts all services (application, database, Redis) using Docker Compose (delegates to `docker/run.sh up`).
-- `make down`: Stops all services managed by Docker Compose (delegates to `docker/run.sh down`).
-
-Please refer to the `Makefile` itself for the full list of targets and their specific implementations.
-
-## Environment variables
-
-The application requires the following environment variables, typically managed via a `.env` file in the project root. Take a look at the [.env.example](.env.example) file for reference.
-
-**Important Notes**
-
-- **Localhost Configuration**: When working against localhost, ensure to update the service names in the `.env` file to `localhost`. For example, change `postgresql://user:password@db:5432/event_integrator` to `postgresql://user:password@localhost:5432/event_integrator`.
-- **Version Control**: **Do not commit** the `.env` file to version control.
-
-## Database Migrations
-
-This project uses Flask-Migrate (which relies on Alembic) to manage database schema changes. For details on why migrations are used, see the [Design, Architecture, and Scalability Report](docs/DESIGN_AND_SCALABILITY.md).
-
-### Initial Setup (One-Time Only)
-
-Before you can create or apply migrations for the first time, you need to initialize the migration environment. This creates a `migrations` directory in your project root that will store all migration scripts and configurations.
-
-1.  **Ensure the `migrations` directory exists with correct permissions:**
-    This step is crucial to avoid permission errors when Docker tries to write to this directory from within the container. From your project root:
-
-    ```bash
-    mkdir -p migrations
-    sudo chown -R $(id -u):$(id -g) migrations
-    ```
-
-2.  **Initialize the Flask-Migrate environment:**
-    From the project root again, run this command to initialize the migration environment with:
-
-    ```bash
-    make init-migrations
-    ```
-
-    This command will populate the `./migrations` directory on your host with essential migration files.
-
-    You should commit the initially generated `migrations` directory and all its contents. For this project, **commit all generated migration scripts in `migrations/versions/`**.
-
-Once these steps are completed and committed, you can use the Makefile targets like `make create-migration` and `make migrate` to manage your database schema changes.
-
-### Creating New Migrations
-
-Whenever you make changes to your SQLAlchemy models (defined in `app/models/*.py`), you must generate a new migration script to reflect these changes.
-
-**Generate the migration script:**
-
-Use the provided Makefile command:
+Execute the comprehensive test suite (Unit + Integration) in an isolated container.
 
 ```bash
-    make create-migration message="<message>"
+make test
 ```
 
-Replace `<message>` with a short, clear summary of the schema changes you made, and you will see the migration script generated in `migrations/versions/`.
+---
 
-### Applying Migrations
+## 🔌 API Usage
 
-Applying migrations to execute the generated scripts to update your database schema to the desired state.
+### Search Events
 
-1.  **Automatically on `docker compose up` (via `make up`):**
-    The `migrations` service defined in `docker/docker-compose.yml` is configured to automatically run `flask db upgrade` every time your services are started.
+Retrieve events within a specific date range.
 
-2.  **Manually using Makefile:**
-    If you need to apply migrations manually (e.g., after pulling new changes from Git that include new migration scripts, without restarting all services), you can use:
-
-    ```bash
-    make migrate
-    ```
-
-3.  **Manually for Local Development (without Docker, using Poetry environment):**
-    If you are developing locally without relying on Docker and have your database and environment variables configured directly on your host machine: - First, ensure your Poetry virtual environment is active:
-    ```bash
-    poetry shell
-    ```
-    - Then apply migrations:
-    ```bash
-    flask db upgrade
-    ```
-
-## Running the app
-
-Ensure environment variables are set or available in a `.env` file.
-
-Using Makefile with Docker Compose is recommended. This method uses the [docker/docker-compose.yml](docker/docker-compose.yml) file which runs the Flask app along with an Nginx proxy, PostgreSQL database, and Redis.
-
-Ensure your `.env` file is in the project root, as `docker-compose.yml` depends on it.
-
-Build and start the containers in detached mode with:
-
-```sh
-source .env && make build && make up
+```bash
+curl -X GET "http://localhost:8080/v1/events/search?starts_at=2024-01-01T00:00:00Z&ends_at=2024-12-31T23:59:59Z"
 ```
 
-The app will be available via Nginx at `http://localhost:8080`
+**Response Example:**
 
-- Event search endpoint: `http://localhost:8080/v1/events/search`
-- Health check: [http://localhost:8080/v1/health/](http://localhost:8080/v1/health/)
-
-- View logs: `cd docker && docker compose logs -f` (or `make logs`)
-- Stop containers: `make down`
-
-## Running Tests
-
-Ensure development dependencies are installed (this is handled by `make install` if you haven't run it yet, or it's included if you've run `make up`).
-
-Configure a `TEST_DATABASE_URL` in your environment or `.env` file, so tests automatically run against that database.
-
-To run tests:
-
-```sh
-source .env.test && make build test_env=true && make test
+```json
+{
+  "data": {
+    "events": [
+      {
+        "id": "291",
+        "title": "Camellias @ 12:00 PM",
+        "start_date": "2024-07-04",
+        "start_time": "12:00:00",
+        "end_date": "2024-07-04",
+        "end_time": "13:00:00",
+        "min_price": 20.0,
+        "max_price": 35.0
+      }
+    ]
+  },
+  "error": null
+}
 ```
 
-**IMPORTANT**: ensure you have sourced your test environment variables first with `source .env.test`. That command relies on `docker/run.sh`, which depends on `--env-file=.env.test` for the test environment to work. That file is hardcoded in the run.sh script.
+---
+
+## 🔍 Technical Highlights
+
+### 1. Asynchronous Ingestion Strategy
+
+Instead of fetching data from providers on-demand (which is slow and unreliable), this system uses a **background synchronization pattern**.
+
+- **Celery Beat** schedules periodic sync tasks.
+- **Celery Workers** fetch and parse XML from providers in parallel (extensible).
+- **Atomic Upserts** ensure data consistency in the database, handling updates for existing records and correctly marking "stale" data that is no longer present in the provider's feed.
+
+### 2. Resilient XML Parsing
+
+External data is often messy. The `XMLParser` component uses `lxml` for speed and Pydantic for validation, ensuring that only valid, well-structured data reaches the database.
+
+- **Granular Error Handling**: Malformed zones or plans are skipped individually without crashing the entire file processing.
+- **Normalization**: Flattens nested XML structures into relational database tables (`Events`, `Plans`, `Zones`).
+
+### 3. Caching & Performance
+
+- **API Level**: Endpoints are cached using Redis to serve frequent search queries instantly.
+- **Database Level**: Indexed columns on `start_date` and `end_date` optimize range queries. `joinedload` strategies are used to prevent N+1 query problems when fetching related plans and zones.
+
+### 4. Developer Experience (DX)
+
+- **Makefile** interfaces for all common tasks.
+- **Auto-Migrations** via Alembic/Flask-Migrate on container startup.
+- **Structured Logging** for easier debugging in production.
+
+---
+
+## 📜 License
+
+This project is open-source and available under the MIT License.
