@@ -60,7 +60,7 @@ def _transform_event_to_summary(event: Event) -> dict:
     }
 
 
-@api.route("/search", methods=["GET"])
+@api.route("/search", methods=["GET"], strict_slashes=False)
 @arguments(EventSearchQueryArgsSchema)
 @response(SuccessResponseSchema, 200)
 @cache.cached()

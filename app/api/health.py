@@ -3,7 +3,7 @@ from app.api.schemas import HealthSchema
 from apifairy import response
 
 
-@api.route("/", methods=["GET"])
+@api.route("", methods=["GET"], strict_slashes=False)
 @response(HealthSchema, 200)
 def health():
     return {"status": "ok"}
